@@ -1,0 +1,7 @@
+# .pylintrc
+#
+
+[MASTER]
+
+# https://miguendes.me/pylint-consider-using-f-string
+disable=consider-using-f-string
