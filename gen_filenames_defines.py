@@ -145,7 +145,9 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir):
         for file in sorted(files):
 
             # Skip files that are not .c source files
-            if file.endswith('.c') is False:
+            if (file.endswith('.c') is False
+               and file.endswith('.cpp') is False
+               and file.endswith('.cc') is False):
                 continue
 
             # Munge file name to sort dups, and build full-path name
