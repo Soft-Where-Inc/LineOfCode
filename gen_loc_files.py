@@ -25,6 +25,9 @@ import os
 import tempfile
 import argparse
 
+import subprocess as sp
+
+
 ###############################################################################
 # Global Variables: Used in multiple places. List here for documentation
 ###############################################################################
@@ -49,8 +52,6 @@ def do_main(args) -> bool:
     Main driver to search through the code base looking for source files.
     """
     # pylint: disable-msg=too-many-locals
-    retval = False
-
     if len(sys.argv) < 2:
         print("Usage: %s <root src-dir>" % (sys.argv[0]))
         print("Example: %s $HOME/Code/myProject/" % (sys.argv[0]))
@@ -123,8 +124,14 @@ def do_main(args) -> bool:
         if verbose:
             fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_decode_dotc + '\n')
 
-    retval = True
-    return retval
+    cc_rc = gen_cc_loc_decoder(tmp_dir, loc_decode_bin, loc_decode_dotc, loc_dotc)
+    if verbose and cc_rc == 0:
+        fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_decode_bin + '\n')
+
+    if cc_rc != 0:
+        sys.exit(1)
+
+    return True
     # pylint: enable-msg=too-many-locals
 
 ###############################################################################
@@ -138,6 +145,7 @@ def loc_parseargs(args):
 
     # pylint: disable-msg=line-too-long
     # Ref: https://stackoverflow.com/questions/18160078/how-do-you-write-tests-for-the-argparse-portion-of-a-python-module
+    # pylint: enable-msg=line-too-long
 
     # ---------------------------------------------------------------
     # Start of argument parser, with inline examples text
@@ -547,12 +555,41 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
 
     fprintf(loc_fh, "    for (int i = 1; i < argc; i++) {\n")
     fprintf(loc_fh, "        loc_t loc = atoi(argv[i]);\n")
-    fprintf(loc_fh, "        printf(\"%%u: %%s:%%d\\n\", loc, LOC_FILE(loc), LOC_LINE(loc));\n")
+    fprintf(loc_fh, "        printf(\"%%u: [fnum=%%d] %%s:%%d \\n\",\n")
+    fprintf(loc_fh, "               loc, LOC_FILE_TOKEN(loc), LOC_FILE(loc), LOC_LINE(loc));\n")
     fprintf(loc_fh, "   }\n")
     fprintf(loc_fh, "}\n")
 
     fprintf(loc_fh, "\n// clang-format on\n")
     # pylint: enable-msg=too-many-arguments
+
+# #############################################################################
+# pylint: disable-msg=line-too-long
+# Ref: https://stackoverflow.com/questions/20388992/python-nice-way-to-iterate-over-shell-command-result
+#      https://stackoverflow.com/questions/25079140/subprocess-popen-checking-for-success-and-errors
+#      https://stackoverflow.com/questions/21406887/subprocess-changing-directory
+#      https://stackoverflow.com/questions/32984058/ld-cant-open-output-file-for-writing-bin-s-errno-2-for-architecture-x86-64
+# pylint: enable-msg=line-too-long
+# #############################################################################
+def gen_cc_loc_decoder(tmpdir, loc_decode_bin, loc_decode_dotc, loc_dotc) -> int:
+    """
+    Compile the generated loc-decoder source file to generate the LOC-decoder
+    binary, specific for the code-base being processed.
+    """
+    result = sp.run(["cc", "-o", tmpdir + loc_decode_bin,
+                      "-I" , tmpdir,
+                      tmpdir + loc_dotc,
+                      tmpdir + loc_decode_dotc
+                      ],
+                      text=True,
+                      check=True,
+                      capture_output=True, cwd=tempfile.gettempdir()
+                      )
+    if result.returncode != 0:
+        print(result.stdout)
+        print(result.stderr)
+
+    return result.returncode
 
 ###############################################################################
 def gen_doth_include_guards(doth_fh, file_name, begin_block):
