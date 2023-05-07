@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Ignore Py artifacts produced by LOC package & its scripts / tests
+*__pycache__*
+*.pyc
+*.py.swp
+*.swp

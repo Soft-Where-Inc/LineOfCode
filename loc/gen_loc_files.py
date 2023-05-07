@@ -57,7 +57,7 @@ def do_main(args) -> bool:
         print("Example: %s $HOME/Code/myProject/" % (sys.argv[0]))
         sys.exit(1)
 
-    parsed_args = loc_parseargs(args)
+    parsed_args = loc_parse_args(args)
 
     src_root_dir     = parsed_args.src_dirname
     verbose          = parsed_args.verbose
@@ -136,7 +136,7 @@ def do_main(args) -> bool:
 
 ###############################################################################
 # Argument Parsing routine
-def loc_parseargs(args):
+def loc_parse_args(args):
     """
     Command-line argument parser.
 
@@ -497,6 +497,7 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
         loc_decode_bin  - Name of LOC-decode binary program
     """
     # pylint: disable-msg=too-many-arguments
+    # pylint: disable-msg=too-many-statements
     fprintf(loc_fh, "/*\n")
     fprintf(loc_fh, " * To generate the LOC decoding program for this code-base, do:\n")
     fprintf(loc_fh, " *   cc -o %s %s %s\n", loc_decode_bin, loc_dotc, loc_decode_dotc)
@@ -523,32 +524,69 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
 
     # Generate some sample encoding values
     nbits_lines = 16
-    file_num = 1
-    line_num = 200
-    loc1 = (file_num << nbits_lines) | line_num
+    if max_file_num == 1:
+        file_num = 1
+        line_num = 4
+        loc1 = (file_num << nbits_lines) | line_num
 
-    file_num = 5
-    line_num = 123
-    loc2 = (file_num << nbits_lines) | line_num
+        line_num = 5
+        loc2 = (file_num << nbits_lines) | line_num
 
-    file_num = 6
-    line_num = 223
-    loc3 = (file_num << nbits_lines) | line_num
+        line_num = 10
+        loc3 = (file_num << nbits_lines) | line_num
 
-    file_num = 6
-    line_num = 224
-    loc4 = (file_num << nbits_lines) | line_num
+        line_num = 17
+        loc4 = (file_num << nbits_lines) | line_num
+    elif max_file_num == 2:
+        file_num = 1
+        line_num = 4
+        loc1 = (file_num << nbits_lines) | line_num
+
+        line_num = 5
+        loc2 = (file_num << nbits_lines) | line_num
+
+        file_num = 2
+        line_num = 10
+        loc3 = (file_num << nbits_lines) | line_num
+
+        line_num = 17
+        loc4 = (file_num << nbits_lines) | line_num
+    else:
+        file_num = 1
+        line_num = 4
+        loc1 = (file_num << nbits_lines) | line_num
+
+        file_num = 5
+        line_num = 123
+        loc2 = (file_num << nbits_lines) | line_num
+
+        file_num = 6
+        line_num = 223
+        loc3 = (file_num << nbits_lines) | line_num
+
+        file_num = 6
+        line_num = 224
+        loc4 = (file_num << nbits_lines) | line_num
 
     fprintf(loc_fh, "        printf(\"  %s %u %u %u %u\\n\");\n",
             loc_decode_bin, loc1, loc2, loc3, loc4)
 
-    # Show an example of generating LOC using encoding macro.
+    # Show an example of generating LOC using encoding macro, using diff
+    # file numbers, depending on the source code-base processed.
+    file_numbers= []
+    if max_file_num == 1:
+        file_numbers = [1, 1, 1, 1]
+    elif max_file_num == 2:
+        file_numbers = [1, 1, 2, 2]
+    else:
+        file_numbers = [1, 5, 6, 8]
+
     fprintf(loc_fh, "        printf(\"  %s %%u %%u %%u %%u\\n\", %s, %s, %s, %s);\n",
             loc_decode_bin,
-            "LOC_ENCODE(2, 10)",
-            "LOC_ENCODE(3, 30)",
-            "LOC_ENCODE(3, 31)",
-            "LOC_ENCODE(4, 44)")
+            "LOC_ENCODE(" + str(file_numbers[0]) + ", 10)",
+            "LOC_ENCODE(" + str(file_numbers[1]) + ", 30)",
+            "LOC_ENCODE(" + str(file_numbers[2]) + ", 31)",
+            "LOC_ENCODE(" + str(file_numbers[3]) + ", 44)")
 
     fprintf(loc_fh, "    }\n")
 
@@ -561,6 +599,7 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
     fprintf(loc_fh, "}\n")
 
     fprintf(loc_fh, "\n// clang-format on\n")
+    # pylint: enable-msg=too-many-statements
     # pylint: enable-msg=too-many-arguments
 
 # #############################################################################
@@ -701,6 +740,13 @@ def pr_hash(this_hash):
     """ Print a list of names from a hash """
     for file in this_hash.keys():
         fprintf(sys.stdout, "  %s:%s\n", file, this_hash[file])
+
+###############################################################################
+# Helper methods, to facilitate unit-testing
+###############################################################################
+def loc_get_this_scriptdir():
+    """ Return the directory name where this script lives."""
+    return LOC_THIS_SCRIPT_DIR
 
 ###############################################################################
 # Start of the script: Execute only if run as a script

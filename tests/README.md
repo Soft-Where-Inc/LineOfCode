@@ -5,7 +5,8 @@ collection of code bases, in different languages, and to cross-check that
 the tool basically works, and that the generated helper tool, specific to
 each code base, compiles and runs cleanly.
 
-Manual testing is being done for these code bases, downloaded from these GitHub sites:
+Manual testing, based on Pytest, is being done for these code bases, downloaded
+from these GitHub sites:
 
  1. Postgres   : git@github.com:postgres/postgres.git - C
  2. RocksDB    : git@github.com:facebook/rocksdb.git - C++ / Java
@@ -56,3 +57,9 @@ From: Apache site
  1.  solr               : git@github.com:apache/solr.git             (726 **)  - Java
  1.  zookeeper          : git@github.com:apache/zookeeper.git        (11.2k **) - Java / C++ / C
 
+--------
+# Pytests
+
+A small collection of pytest tests exist to verify the LOC-generator
+
+- test_gen_loc_files_basic.py - Exercises basic generator functionality
