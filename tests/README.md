@@ -63,3 +63,5 @@ From: Apache site
 A small collection of pytest tests exist to verify the LOC-generator
 
 - test_gen_loc_files_basic.py - Exercises basic generator functionality
+- test_gen_loc_files_oss_code_bases.py - Exercises the LOC generator script on
+   above set of OSS source code bases. (This works offline on a private machine.)

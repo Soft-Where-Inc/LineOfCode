@@ -47,7 +47,7 @@ def main():
     do_main(sys.argv[1:])
 
 ###############################################################################
-def do_main(args) -> bool:
+def do_main(args) -> (bool, int, int):
     """
     Main driver to search through the code base looking for source files.
     """
@@ -76,6 +76,8 @@ def do_main(args) -> bool:
     if loc_debug:
         print(tmp_dir, src_root_dir)
 
+    max_file_num = 0
+    max_num_lines = 0
     # -----------------------------------------------------------------------
     # The filename-index mnemonics will come out in the .h file, but the list
     # of file names array will come out in the .c file. Only after we source
@@ -88,9 +90,11 @@ def do_main(args) -> bool:
         with open(tmp_dir + os.path.basename(loc_dotc), 'w', encoding="utf8") as dotc_fh:
             gen_loc_file_banner_msg(dotc_fh, src_root_dir, loc_dotc)
 
-            max_file_num = gen_loc_generated_files(doth_fh, dotc_fh,
-                                                   src_root_dir,
-                                                   dump_dup_files)
+            (max_file_num, max_num_lines) = gen_loc_generated_files(doth_fh,
+                                                                    dotc_fh,
+                                                                    src_root_dir,
+                                                                    dump_dup_files,
+                                                                    verbose)
 
         gen_doth_include_guards(doth_fh, loct_doth, False)
         if verbose:
@@ -131,7 +135,7 @@ def do_main(args) -> bool:
     if cc_rc != 0:
         sys.exit(1)
 
-    return True
+    return (True, max_file_num, max_num_lines)
     # pylint: enable-msg=too-many-locals
 
 ###############################################################################
@@ -191,7 +195,7 @@ def loc_parse_args(args):
 
 ###############################################################################
 def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
-                            dump_dup_files):
+                            dump_dup_files, verbose):
     """
     Function to drive the generation of the generated files:
         $TMPDIR/loc.h
@@ -207,6 +211,9 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
         dotc_fh          - File handle for generated .c file
         src_root_dir     - Top-level source root-dir to run a 'find' for .c files
         dump_dup_files   - Boolean; Dump list of dup file names found
+        verbose          - Boolean; Print verbose messages for debugging
+
+    Returns: (number-of-files, max-num-lines-across-all-files)
     """
     # pylint: disable-msg=too-many-locals
 
@@ -218,6 +225,7 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
     dup_file_names = {}
 
     num_files = 0
+    max_num_lines = 0
 
     # Grab code-base source's root-dir. This way, if user runs this script with
     # '~/Code/<someProduct>', then we only store the file-names as:
@@ -260,8 +268,11 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
                 dup_file_names[file_base_name] = file_full_name
 
             file_names[file_base_name] = file_full_name
-            with open(root + "/" + file, encoding="utf8") as src_fh:
-                file_lines[file_base_name] = len(src_fh.readlines())
+
+            num_lines = count_lines(root + "/" + file, verbose)
+            file_lines[file_base_name] = num_lines
+            if num_lines > max_num_lines:
+                max_num_lines = num_lines
 
             num_files += 1
 
@@ -280,7 +291,7 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
     if dump_dup_files:
         pr_dup_file_names(dup_file_names)
 
-    return num_files
+    return (num_files, max_num_lines)
     # pylint: enable-msg=too-many-locals
 
 ###############################################################################
@@ -589,8 +600,6 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
             "LOC_ENCODE(" + str(file_numbers[3]) + ", 44)")
 
     fprintf(loc_fh, "    }\n")
-
-
     fprintf(loc_fh, "    for (int i = 1; i < argc; i++) {\n")
     fprintf(loc_fh, "        loc_t loc = atoi(argv[i]);\n")
     fprintf(loc_fh, "        printf(\"%%u: [fnum=%%d] %%s:%%d \\n\",\n")
@@ -726,6 +735,24 @@ def xform_fname_to_token(filename):
 def fprintf(stream, format_spec, *args):
     """ C-like fprintf() interface. """
     stream.write(format_spec % args)
+
+def count_lines(file_full_path, verbose) -> int:
+    """ Open a text file and return # of lines """
+    numlines = 0
+    with open(file_full_path, encoding="utf8") as src_fh:
+        try:
+            numlines = len(src_fh.readlines())
+        except UnicodeDecodeError:
+            if verbose:
+                fprintf(sys.stderr, "UnicodeDecode error occurred trying to read %s\n",
+                        file_full_path)
+        except UnicodeError:
+            if verbose:
+                fprintf(sys.stderr, "Unicode error occurred trying to read %s\n",
+                        file_full_path)
+
+    return numlines
+
 
 def pr_dup_file_names(dup_file_names):
     """ Print a list of duplicate file names from a hash """

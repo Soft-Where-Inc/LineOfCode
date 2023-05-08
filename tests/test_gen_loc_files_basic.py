@@ -76,11 +76,15 @@ def test_help():
 # #############################################################################
 def test_single_file_program():
     """Exercise generator on a single-file program from test-code base"""
-    retval = loc_main.do_main(['--src-root-dir', LocTestCodeDir + '/single-file-program/', '--verbose'])
+    retval = loc_main.do_main(['--src-root-dir',
+                               LocTestCodeDir + '/single-file-program/',
+                               '--verbose'])
     assert retval is True
 
 # #############################################################################
 def test_two_files_program():
     """Exercise generator on a program with two source files from test-code base"""
-    retval = loc_main.do_main(['--src-root-dir', LocTestCodeDir + '/two-files-program', '--verbose'])
+    retval = loc_main.do_main(['--src-root-dir',
+                               LocTestCodeDir + '/two-files-program',
+                               '--verbose'])
     assert retval is True
