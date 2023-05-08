@@ -76,15 +76,24 @@ def test_help():
 # #############################################################################
 def test_single_file_program():
     """Exercise generator on a single-file program from test-code base"""
-    retval = loc_main.do_main(['--src-root-dir',
-                               LocTestCodeDir + '/single-file-program/',
-                               '--verbose'])
+    (retval, num_files, max_num_lines, file_w_max_num_lines) = \
+      loc_main.do_main(['--src-root-dir',
+                        LocTestCodeDir + '/single-file-program/',
+                        '--verbose'])
+
     assert retval is True
+    assert num_files == 1
+    assert max_num_lines > 0
+    assert file_w_max_num_lines.endswith('single-file.c')
 
 # #############################################################################
 def test_two_files_program():
     """Exercise generator on a program with two source files from test-code base"""
-    retval = loc_main.do_main(['--src-root-dir',
-                               LocTestCodeDir + '/two-files-program',
-                               '--verbose'])
+    (retval, num_files, max_num_lines, file_w_max_num_lines) = \
+      loc_main.do_main(['--src-root-dir',
+                        LocTestCodeDir + '/two-files-program',
+                        '--verbose'])
     assert retval is True
+    assert num_files == 2
+    assert max_num_lines > 0
+    assert file_w_max_num_lines.endswith('two-files-main.c')

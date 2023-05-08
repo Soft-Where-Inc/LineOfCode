@@ -47,7 +47,7 @@ def main():
     do_main(sys.argv[1:])
 
 ###############################################################################
-def do_main(args) -> (bool, int, int):
+def do_main(args) -> (bool, int, int, str):
     """
     Main driver to search through the code base looking for source files.
     """
@@ -78,6 +78,7 @@ def do_main(args) -> (bool, int, int):
 
     max_file_num = 0
     max_num_lines = 0
+    file_w_max_num_lines = ""
     # -----------------------------------------------------------------------
     # The filename-index mnemonics will come out in the .h file, but the list
     # of file names array will come out in the .c file. Only after we source
@@ -90,7 +91,7 @@ def do_main(args) -> (bool, int, int):
         with open(tmp_dir + os.path.basename(loc_dotc), 'w', encoding="utf8") as dotc_fh:
             gen_loc_file_banner_msg(dotc_fh, src_root_dir, loc_dotc)
 
-            (max_file_num, max_num_lines) = gen_loc_generated_files(doth_fh,
+            (max_file_num, max_num_lines, file_w_max_num_lines) = gen_loc_generated_files(doth_fh,
                                                                     dotc_fh,
                                                                     src_root_dir,
                                                                     dump_dup_files,
@@ -135,7 +136,7 @@ def do_main(args) -> (bool, int, int):
     if cc_rc != 0:
         sys.exit(1)
 
-    return (True, max_file_num, max_num_lines)
+    return (True, max_file_num, max_num_lines, file_w_max_num_lines)
     # pylint: enable-msg=too-many-locals
 
 ###############################################################################
@@ -213,7 +214,8 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
         dump_dup_files   - Boolean; Dump list of dup file names found
         verbose          - Boolean; Print verbose messages for debugging
 
-    Returns: (number-of-files, max-num-lines-across-all-files)
+    Returns: (number-of-files, max-num-lines-across-all-files,
+              file-with-max-lines)
     """
     # pylint: disable-msg=too-many-locals
 
@@ -226,6 +228,7 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
 
     num_files = 0
     max_num_lines = 0
+    file_w_max_num_lines = ""
 
     # Grab code-base source's root-dir. This way, if user runs this script with
     # '~/Code/<someProduct>', then we only store the file-names as:
@@ -273,6 +276,7 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
             file_lines[file_base_name] = num_lines
             if num_lines > max_num_lines:
                 max_num_lines = num_lines
+                file_w_max_num_lines = src_root_base + root_dirname + "/" + file
 
             num_files += 1
 
@@ -291,7 +295,7 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
     if dump_dup_files:
         pr_dup_file_names(dup_file_names)
 
-    return (num_files, max_num_lines)
+    return (num_files, max_num_lines, file_w_max_num_lines)
     # pylint: enable-msg=too-many-locals
 
 ###############################################################################
