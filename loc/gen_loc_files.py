@@ -52,6 +52,7 @@ def do_main(args) -> (bool, int, int, str):
     Main driver to search through the code base looking for source files.
     """
     # pylint: disable-msg=too-many-locals
+    # pylint: disable-msg=too-many-statements
     if len(sys.argv) < 2:
         print("Usage: %s <root src-dir>" % (sys.argv[0]))
         print("Example: %s $HOME/Code/myProject/" % (sys.argv[0]))
@@ -137,6 +138,7 @@ def do_main(args) -> (bool, int, int, str):
         sys.exit(1)
 
     return (True, max_file_num, max_num_lines, file_w_max_num_lines)
+    # pylint: enable-msg=too-many-statements
     # pylint: enable-msg=too-many-locals
 
 ###############################################################################
