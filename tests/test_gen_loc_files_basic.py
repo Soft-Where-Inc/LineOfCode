@@ -84,7 +84,7 @@ def test_single_file_program():
     assert retval is True
     assert num_files == 1
     assert max_num_lines > 0
-    assert file_w_max_num_lines.endswith('single-file.c')
+    assert file_w_max_num_lines.endswith('single-file-main.c')
 
 # #############################################################################
 def test_two_files_program():
