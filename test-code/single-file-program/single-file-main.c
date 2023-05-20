@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include "two_files.h"
 
 static void
 function1(void)
@@ -18,8 +17,6 @@ main(int argc, const char *argv[])
 {
     printf("%s:%d:%s(): Hello World!\n", __FILE__, __LINE__, __func__);
     function1();
-    function2();
 
-    file1_function1();
-    file1_function2();
+    function2();
 }

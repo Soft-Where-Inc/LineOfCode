@@ -7,7 +7,7 @@
 
 help::
 	@echo 'Usage: make [<target>]'
-	@echo 'Supported targets: clean all run-tests'
+	@echo 'Supported targets: clean all run-tests run-test-code'
 
 #
 # Verbosity
@@ -39,6 +39,7 @@ endif
 SRCDIR               = src
 TESTSDIR             = tests
 UNITDIR              = unit
+TEST_CODE            = test-code
 UNIT_TESTSDIR        = $(TESTSDIR)/$(UNITDIR)
 INCDIR               = $(UNIT_TESTSDIR)
 
@@ -76,18 +77,49 @@ BINDIR = $(BUILD_PATH)/bin
 # unit-test binaries.
 # UNIT_TESTSRC := $(call rwildcard,$(UNIT_TESTSDIR),*.c)
 UNIT_TESTSRC := $(shell find $(TESTSDIR)/$(UNITDIR) -type f -name *.c -print)
-$(info $$UNIT_TESTSRC is [${UNIT_TESTSRC}])
 
 # Objects from unit-test sources in tests/unit/ sub-dir, for unit-tests
 # Resolves to a list: obj/tests/unit/a.o obj/tests/unit/b.o obj/tests/unit/c.o
 UNIT_TESTOBJS := $(UNIT_TESTSRC:%.c=$(OBJDIR)/%.o)
-$(info $$UNIT_TESTOBJS is [${UNIT_TESTOBJS}])
+
+# ---- Symbols to build test-code sample programs
+TEST_CODE_SRC := $(shell find $(TEST_CODE) -type f -name *.c -print)
+TEST_CODE_OBJS := $(TEST_CODE_SRC:%.c=$(OBJDIR)/%.o)
+
+# Grab the "main.c" for each test-code sample program
+TEST_CODE_BIN_SRC=$(filter %-main.c, $(TEST_CODE_SRC))
+
+# ----------------------------------------------------------------------------
+# Generate location / name of test-code sample program binary, using built-in
+# substitution references. test-code/ has sources like:
+#
+#   test-code/single-file-program/single-file-main.c
+#   test-code/two-files-program/two-files-main.c
+#
+# Convert this list of *main.c to generate test-code program binary names:
+#   build/release/bin/test-code/single-file-program
+#   build/release/bin/test-code/two-files-program
+#
+TEST_CODE_BINS_TMP=$(TEST_CODE_BIN_SRC:$(TEST_CODE)/%-main.c=$(BINDIR)/$(TEST_CODE)/%-program)
+TEST_CODE_BINS=$(patsubst %program/, %program, $(dir $(TEST_CODE_BINS_TMP)) )
+
+# TEST_CODE_BINS=$(TEST_CODE_BIN_SRC:$(TEST_CODE)/%-main.c=$(dir ($(BINDIR)/$(TEST_CODE)/%-program)) )
 
 ####################################################################
 # The main targets
 #
-all: all-tests
+all: all-tests all-test-code
 all-tests: $(BINDIR)/unit_test
+all-test-code: $(TEST_CODE_BINS)
+
+ifeq "$(BUILD_VERBOSE)" "1"
+	$(info $$TEST_CODE_SRC is [${TEST_CODE_SRC}])
+	$(info $$TEST_CODE_OBJS is [${TEST_CODE_OBJS}])
+	$(info $$TEST_CODE_BIN_SRC is [${TEST_CODE_BIN_SRC}])
+	$(info $$TEST_CODE_BINS is [${TEST_CODE_BINS}])
+	$(info $$UNIT_TESTSRC is [${UNIT_TESTSRC}])
+	$(info $$UNIT_TESTOBJS is [${UNIT_TESTOBJS}])
+endif
 
 # ###################################################################
 # CFLAGS, LDFLAGS, ETC
@@ -123,8 +155,22 @@ $(BINDIR)/%/.:
 $(BINDIR)/unit_test: $(UNIT_TESTOBJS)
 
 # ###################################################################
+# The dependencies for each test-code sample program
+# Every example program of the form bin/test-code/<eg-prog> depends on
+# obj/test-code/<eg-prog>/*.o -> *.c
+# There can be more than one .o's linked to create test-code example
+# program.
+
+$(BINDIR)/$(TEST_CODE)/single-file-program: $(OBJDIR)/$(TEST_CODE)/single-file-program/single-file-main.o
+
+$(BINDIR)/$(TEST_CODE)/two-files-program: $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-main.o \
+                                          $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-file1.o
+
+# ###################################################################
 # RECIPES:
 
+# RESOLVE: Need to re-define INCLUDE depending on target.
+# For all-test-code, we need to use -I test-code/<subdir>
 # Dependencies for the main executables
 COMPILE.c = $(CC) $(CFLAGS) $(INCLUDE) -c
 
@@ -163,3 +209,8 @@ clean:
 
 run-tests:
 	./test.sh
+
+run-test-code: all-test-code
+	@echo
+	@echo "**** Run sample test-code programs ****"
+	for i in $(TEST_CODE_BINS); do echo " "; echo "-- Executing $$i";$$i || exit;  done
