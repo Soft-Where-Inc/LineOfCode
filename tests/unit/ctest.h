@@ -17,6 +17,8 @@
 #ifndef CTEST_H
 #define CTEST_H
 
+#include <stdio.h>
+
 #ifdef __GNUC__
 #define CTEST_IMPL_FORMAT_PRINTF(a, b) __attribute__ ((format(printf, a, b)))
 #else
