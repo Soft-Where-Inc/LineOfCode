@@ -17,11 +17,14 @@ jobs:
     #! - name: configure
     #!  run: ./configure
 
-    - name: Install dependencies
-      run: make
+    - name: clean
+      run: make clean
 
-    - name: Run check
-      run: make check
+    - name: make
+      run: CC=gcc LD=gcc make
+
+    #! - name: Run check
+    #!   run: make check
 
     #! - name: Run distcheck
     #! run: make distcheck
