@@ -24,16 +24,24 @@ import sys
 import os
 import tempfile
 import argparse
-
 import subprocess as sp
+import shutil
 
+# Ref: https://stackoverflow.com/questions/3108285/in-python-script-how-do-i-set-pythonpath
+# PYTHONPATH will become ".../LineOfCode" dir, to resolve loc package imports
+LOC_THIS_SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
+# Ref: https://stackoverflow.com/questions/3108285/in-python-script-how-do-i-set-pythonpath
+# pylint: disable-msg=wrong-import-position
+sys.path.append(LOC_THIS_SCRIPT_DIR + '/..')
+
+import loc.utils as locu
 
 ###############################################################################
 # Global Variables: Used in multiple places. List here for documentation
 ###############################################################################
 
 LOC_SCRIPT          = os.path.basename(__file__)
-LOC_THIS_SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 LOC_PKGSRC_DIR      = os.path.dirname(LOC_THIS_SCRIPT_DIR)
 LOC_DBG_GENFILESDIR = '/tmp'
 
@@ -58,15 +66,20 @@ def do_main(args) -> (bool, int, int, str):
         print("Example: %s $HOME/Code/myProject/" % (sys.argv[0]))
         sys.exit(1)
 
+    # By default, .h / .c files will be generated in /tmp first.
+    tmp_dir = tempfile.gettempdir() + '/'
+
     parsed_args = loc_parse_args(args)
 
-    src_root_dir     = parsed_args.src_dirname
+    # Extract parsed cmdline flags into local variables
+    src_root_dir     = parsed_args.src_root_dirname
+    inc_dirname      = tmp_dir if parsed_args.inc_dirname is None else parsed_args.inc_dirname
+    src_dirname      = tmp_dir if parsed_args.src_dirname is None else parsed_args.src_dirname
     verbose          = parsed_args.verbose
+    gen_cflags       = parsed_args.gen_cflags
     loc_debug        = parsed_args.debug_script
     dump_dup_files   = parsed_args.dump_dup_files
 
-    # Open the to-be-generated .h / .c files in /tmp first.
-    tmp_dir = tempfile.gettempdir() + '/'
     loct_doth = "loc_tokens.h"
     loc_dotc = "loc_filenames.c"
 
@@ -74,40 +87,48 @@ def do_main(args) -> (bool, int, int, str):
     if src_root_dir.endswith('/'):
         src_root_dir = os.path.dirname(src_root_dir)
 
+    inc_dirname = os.path.abspath(inc_dirname)
+    src_dirname = os.path.abspath(src_dirname)
+
     if loc_debug:
-        print(tmp_dir, src_root_dir)
+        print_loc_vars(tmp_dir, src_root_dir, inc_dirname, src_dirname)
+
+    if loc_validate_args(src_root_dir, inc_dirname, src_dirname) is False:
+        sys.exit(1)
 
     max_file_num = 0
     max_num_lines = 0
     file_w_max_num_lines = ""
+    full_loct_doth = inc_dirname + '/' + loct_doth
+    full_loc_dotc  = src_dirname + '/' + loc_dotc
     # -----------------------------------------------------------------------
     # The filename-index mnemonics will come out in the .h file, but the list
     # of file names array will come out in the .c file. Only after we source
     # the list of src files can we generate the .h tokens. Hence, both file
     # handles have to be working in tandem.
-    with open(tmp_dir + os.path.basename(loct_doth), 'w', encoding="utf8") as doth_fh:
+    with open(full_loct_doth, 'w', encoding="utf8") as doth_fh:
         gen_loc_file_banner_msg(doth_fh, src_root_dir, loct_doth)
         gen_doth_include_guards(doth_fh, loct_doth, True)
 
-        with open(tmp_dir + os.path.basename(loc_dotc), 'w', encoding="utf8") as dotc_fh:
+        with open(full_loc_dotc, 'w', encoding="utf8") as dotc_fh:
             gen_loc_file_banner_msg(dotc_fh, src_root_dir, loc_dotc)
 
-            (max_file_num, max_num_lines, file_w_max_num_lines) = gen_loc_generated_files(doth_fh,
-                                                                    dotc_fh,
-                                                                    src_root_dir,
-                                                                    dump_dup_files,
-                                                                    verbose)
+            (max_file_num, max_num_lines, file_w_max_num_lines) \
+                = gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
+                                          loc_dotc,
+                                          dump_dup_files, verbose)
 
         gen_doth_include_guards(doth_fh, loct_doth, False)
         if verbose:
-            fprintf(sys.stdout, 'Generated ' + tmp_dir + loct_doth + '\n')
-            fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_dotc + '\n')
+            fprintf(sys.stdout, 'Generated ' + full_loct_doth + '\n')
+            fprintf(sys.stdout, 'Generated ' + full_loc_dotc + '\n')
 
     # -----------------------------------------------------------------------
     # Generate the main header file that other code consuming this LOC machinery
     # will need to include. Required macros and lookup stuff live in this file.
     loc_doth = "loc.h"
-    with open(tmp_dir + os.path.basename(loc_doth), 'w', encoding="utf8") as doth_fh:
+    full_loc_doth = inc_dirname + '/' + loc_doth
+    with open(full_loc_doth, 'w', encoding="utf8") as doth_fh:
         gen_loc_file_banner_msg(doth_fh, src_root_dir, loc_doth)
         gen_doth_include_guards(doth_fh, loc_doth, True)
 
@@ -115,7 +136,7 @@ def do_main(args) -> (bool, int, int, str):
 
         gen_doth_include_guards(doth_fh, loc_doth, False)
         if verbose:
-            fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_doth + '\n')
+            fprintf(sys.stdout, 'Generated ' + full_loc_doth + '\n')
 
     # -----------------------------------------------------------------------
     # Generate the LOC-decoding program, used as helper utility program
@@ -123,19 +144,33 @@ def do_main(args) -> (bool, int, int, str):
     loc_decode_bin = src_root_base + "_" + "loc"
     loc_decode_dotc = loc_decode_bin + ".c"
 
-    with open(tmp_dir + loc_decode_dotc, 'w', encoding="utf8") as loc_fh:
+    # Even though generated .h/.c files may be in project's source-tree,
+    # generate the compiled decoder binary always in /tmp, as we don't know
+    # what the project's build-area dir-rules may be.
+    full_loc_decode_dotc = tmp_dir + '/' + loc_decode_dotc
+
+    with open(full_loc_decode_dotc, 'w', encoding="utf8") as loc_fh:
         gen_loc_file_banner_msg(loc_fh, src_root_dir, loc_decode_dotc)
-        gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, loc_decode_bin)
+        gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc,
+                        loc_decode_bin)
 
         if verbose:
-            fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_decode_dotc + '\n')
+            fprintf(sys.stdout, 'Generated ' + full_loc_decode_dotc + '\n')
 
-    cc_rc = gen_cc_loc_decoder(tmp_dir, loc_decode_bin, loc_decode_dotc, loc_dotc)
-    if verbose and cc_rc == 0:
-        fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_decode_bin + '\n')
+    cc_rc = gen_cc_loc_decoder(tmp_dir, loc_decode_bin, loc_decode_dotc,
+                               full_loct_doth, full_loc_doth,
+                               full_loc_dotc, loc_debug)
+    if verbose:
+        if cc_rc == 0:
+            fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_decode_bin + '\n')
+        else:
+            fprintf(sys.stderr, 'Failed to generate ' + tmp_dir + loc_decode_bin + '\n')
 
     if cc_rc != 0:
         sys.exit(1)
+
+    if gen_cflags:
+        gen_loc_cflags()
 
     return (True, max_file_num, max_num_lines, file_w_max_num_lines)
     # pylint: enable-msg=too-many-statements
@@ -166,10 +201,29 @@ def loc_parse_args(args):
 ''')
 
     # Define arguments supported by this script
-    parser.add_argument('--src-root-dir', dest='src_dirname'
+    parser.add_argument('--src-root-dir', dest='src_root_dirname'
                         , metavar='<src-root-dir>'
+                        , required=True
                         , default=LOC_PKGSRC_DIR
                         , help='Source root dir name, default: ' + LOC_PKGSRC_DIR)
+
+    parser.add_argument('--gen-cflags', dest='gen_cflags'
+                        , action='store_true'
+                        , default=False
+                        , help='Generate suggested CFLAGS to run Make with.')
+
+    parser.add_argument('--gen-includes-dir', dest='inc_dirname'
+                        , metavar='<include-files-dir>'
+                        , default=None
+                        , help='Include .h files dir name.'
+                                + ' Generated .h files go here.'
+                                + ' Default: ' + LOC_PKGSRC_DIR)
+
+    parser.add_argument('--gen-source-dir', dest='src_dirname'
+                        , metavar='<source-files-dir>'
+                        , default=None
+                        , help='Source files dir name, default: ' + LOC_PKGSRC_DIR
+                                + ' Generated .c files go here.')
 
     # ======================================================================
     # Debugging support
@@ -197,7 +251,7 @@ def loc_parse_args(args):
 
 
 ###############################################################################
-def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
+def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir, loc_dotc,
                             dump_dup_files, verbose):
     """
     Function to drive the generation of the generated files:
@@ -213,12 +267,14 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
         dotc_fh          - File handle for generated .h file
         dotc_fh          - File handle for generated .c file
         src_root_dir     - Top-level source root-dir to run a 'find' for .c files
+        loc_dotc         - Name of generated loc_filenames.c file
         dump_dup_files   - Boolean; Dump list of dup file names found
         verbose          - Boolean; Print verbose messages for debugging
 
     Returns: (number-of-files, max-num-lines-across-all-files,
               file-with-max-lines)
     """
+    # pylint: disable-msg=too-many-arguments
     # pylint: disable-msg=too-many-locals
 
     # Hash on file's base name as key, mapping it to full-name w/dir-path
@@ -251,6 +307,12 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
             if (file.endswith('.c') is False
                and file.endswith('.cpp') is False
                and file.endswith('.cc') is False):
+                continue
+
+            # IF user has asked to generate *.c files in the same src-dir
+            # that is being processed, we will come upon loc_filenames.c also.
+            # Skip it.
+            if file == loc_dotc:
                 continue
 
             # Munge file name to sort dups, and build full-path name
@@ -299,6 +361,7 @@ def gen_loc_generated_files(doth_fh, dotc_fh, src_root_dir,
 
     return (num_files, max_num_lines, file_w_max_num_lines)
     # pylint: enable-msg=too-many-locals
+    # pylint: enable-msg=too-many-arguments
 
 ###############################################################################
 def gen_loc_doth_tokens(doth_fh, file_names, max_key_namelen, num_files, file_lines):
@@ -625,25 +688,62 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
 #      https://stackoverflow.com/questions/32984058/ld-cant-open-output-file-for-writing-bin-s-errno-2-for-architecture-x86-64
 # pylint: enable-msg=line-too-long
 # #############################################################################
-def gen_cc_loc_decoder(tmpdir, loc_decode_bin, loc_decode_dotc, loc_dotc) -> int:
+def gen_cc_loc_decoder(tmpdir, loc_decode_bin, loc_decode_dotc,
+                       full_loct_doth, full_loc_doth, full_loc_dotc,
+                       loc_debug) -> int:
+    # pylint: disable-msg=too-many-arguments
     """
     Compile the generated loc-decoder source file to generate the LOC-decoder
     binary, specific for the code-base being processed.
+
+    Parameters:
+        tmpdir          - /tmp-dir where decoder binary will be produced
+        loc_decode_bin  - Decoder-binary name
+        loc_decode_dotc - Decoder-binary's .c file name
+        full_loct_doth  - Full path-name of generated loc_tokens.h
+        full_loc_doth   - Full path-name of generated loc.h
+        full_loc_dotc   - Full path-name of generated loc_filenames.c
+    Returns: 0 upon success, non-zero otherwise
     """
-    result = sp.run(["cc", "-o", tmpdir + loc_decode_bin,
-                      "-I" , tmpdir,
-                      tmpdir + loc_dotc,
-                      tmpdir + loc_decode_dotc
-                      ],
-                      text=True,
-                      check=True,
-                      capture_output=True, cwd=tempfile.gettempdir()
-                      )
-    if result.returncode != 0:
-        print(result.stdout)
-        print(result.stderr)
+
+    # User may have generated filenames.c in some other src-dir. We don't want
+    # to pollute the user's src/ tree by generating objects. If user has not
+    # used cmdline args to relocate generated files to somewhere other than
+    # /tmp-dir, cp over to /tmp-dir the files required to compile the standalone
+    # decoder binary.
+    if os.path.dirname(full_loct_doth) + '/' != tmpdir:
+        shutil.copy2(full_loct_doth, tmpdir)
+    if os.path.dirname(full_loc_doth) + '/' != tmpdir:
+        shutil.copy2(full_loc_doth, tmpdir)
+    if os.path.dirname(full_loc_dotc) + '/' != tmpdir:
+        shutil.copy2(full_loc_dotc, tmpdir)
+
+    tmp_loc_dotc = os.path.basename(full_loc_dotc)
+
+    if loc_debug:
+        print(  "tmp_loc_dotc    = " + tmp_loc_dotc + "\n"
+              + "loc_decode_dotc = " + loc_decode_dotc + "\n"
+              + "loc_decode_bin  = " + loc_decode_bin)
+
+    try:
+        result = sp.run(["cc", "-o", tmpdir + loc_decode_bin,
+                          "-I" , tmpdir,
+                          tmpdir + tmp_loc_dotc,
+                          tmpdir + loc_decode_dotc
+                          ],
+                          text=True,
+                          check=True,
+                          capture_output=True, cwd=tmpdir
+                          )
+    except sp.CalledProcessError as exc:
+        print("sp.run() Status: FAIL, rc=", exc.returncode,
+              "\nargs=", exc.args,
+              "\nstdout=", exc.stdout,
+              "\nstderr=", exc.stderr)
+        return 1
 
     return result.returncode
+    # pylint: enable-msg=too-many-arguments
 
 ###############################################################################
 def gen_doth_include_guards(doth_fh, file_name, begin_block):
@@ -705,6 +805,15 @@ def gen_loc_file_banner_msg(file_hdl, src_dir, file_name):
 ''')
 
 ###############################################################################
+def gen_loc_cflags():
+    """Generate a suggested CFLAGS directive which, in most cases, will be
+    sufficient to compile any source file which may use one of the LOC-macros.
+
+    For now, this is a simplistic definition.
+    """
+    print("CFLAGS='-DLOC_FILE_INDEX=$(patsubst %.c,LOC_%_c,$(notdir $<))'")
+
+###############################################################################
 def find_max_name_lengths(file_names):
     """
     Helper function for auto-formatting output for readability.
@@ -728,6 +837,30 @@ def find_max_name_lengths(file_names):
 ###############################################################################
 # Helper routines:
 ###############################################################################
+def print_loc_vars(tmp_dir, src_root_dir, inc_dirname, src_dirname):
+    """Dump out LOC script variables after parsing."""
+    print("tmp_dir       = ", tmp_dir)
+    print("src_root_dir  = ", src_root_dir)
+    print("inc_dirname   = ", inc_dirname)
+    print("src_dirname   = ", src_dirname)
+
+###############################################################################
+def loc_validate_args(src_root_dir, inc_dirname, src_dirname):
+    """
+    Validate sanity of parsed arguments., to see, e.g., if specified directory exists
+    """
+    if locu.dir_exists(src_root_dir) is False:
+        return False
+
+    if locu.dir_exists(inc_dirname) is False:
+        return False
+
+    if locu.dir_exists(src_dirname) is False:
+        return False
+
+    return True
+
+# ------------------------------------------------------------------------------
 def xform_fname_to_token(filename):
     """
     Transform a filename to its token that will become the filename-index.
@@ -738,10 +871,12 @@ def xform_fname_to_token(filename):
     fname_token = fname_token.replace("-", "_")
     return "LOC_" + fname_token
 
+# ------------------------------------------------------------------------------
 def fprintf(stream, format_spec, *args):
     """ C-like fprintf() interface. """
     stream.write(format_spec % args)
 
+# ------------------------------------------------------------------------------
 def count_lines(file_full_path, verbose) -> int:
     """ Open a text file and return # of lines """
     numlines = 0
@@ -760,6 +895,7 @@ def count_lines(file_full_path, verbose) -> int:
     return numlines
 
 
+# ------------------------------------------------------------------------------
 def pr_dup_file_names(dup_file_names):
     """ Print a list of duplicate file names from a hash """
 
@@ -769,6 +905,7 @@ def pr_dup_file_names(dup_file_names):
     fprintf(sys.stdout, "Duplicate file names found:\n")
     pr_hash(dup_file_names)
 
+# ------------------------------------------------------------------------------
 def pr_hash(this_hash):
     """ Print a list of names from a hash """
     for file in this_hash.keys():

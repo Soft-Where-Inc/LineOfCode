@@ -74,6 +74,31 @@ def test_help():
         loc_main.loc_parse_args(['--help'])
 
 # #############################################################################
+def test_invalid_cmdline_args():
+    """
+    Exercise usages where dirs-specified by cmd-line args are wrong.
+    """
+    with pytest.raises(SystemExit):
+        loc_main.do_main([])
+
+    with pytest.raises(SystemExit):
+        loc_main.do_main(['--src-root-dir', '/tmp/non-existing-dir'] )
+
+    # pylint: disable-msg=expression-not-assigned
+    with pytest.raises(SystemExit):
+        loc_main.do_main(['--src-root-dir',
+                          LocTestCodeDir + '/single-file-program/',
+                          '--gen-includes-dir', '/tmp/non-existing-dir'
+                         ]),
+
+    with pytest.raises(SystemExit):
+        loc_main.do_main(['--src-root-dir',
+                          LocTestCodeDir + '/single-file-program/',
+                          '--gen-source-dir', '/tmp/non-existing-dir'
+                         ]),
+    # pylint: enable-msg=expression-not-assigned
+
+# #############################################################################
 def test_single_file_program():
     """Exercise generator on a single-file program from test-code base"""
     (retval, num_files, max_num_lines, file_w_max_num_lines) = \
@@ -87,11 +112,47 @@ def test_single_file_program():
     assert file_w_max_num_lines.endswith('single-file-main.c')
 
 # #############################################################################
+def test_single_file_program_with_gen_dir_args():
+    """
+    Exercise generator on a single-file program from test-code base
+    with --gen-includes-dir and --gen-source-dir arguments.
+    """
+    codedir = LocTestCodeDir + '/single-file-program/'
+
+    (retval, num_files, max_num_lines, file_w_max_num_lines) = \
+      loc_main.do_main(['--src-root-dir', codedir,
+                        '--gen-includes-dir', codedir,
+                        '--gen-source-dir', codedir,
+                        '--verbose'])
+
+    assert retval is True
+    assert num_files == 1
+    assert max_num_lines > 0
+    assert file_w_max_num_lines.endswith('single-file-main.c')
+
+# #############################################################################
 def test_two_files_program():
     """Exercise generator on a program with two source files from test-code base"""
     (retval, num_files, max_num_lines, file_w_max_num_lines) = \
       loc_main.do_main(['--src-root-dir',
                         LocTestCodeDir + '/two-files-program',
+                        '--verbose'])
+    assert retval is True
+    assert num_files == 2
+    assert max_num_lines > 0
+    assert file_w_max_num_lines.endswith('two-files-main.c')
+
+# #############################################################################
+def test_two_files_program_with_gen_dir_args():
+    """
+    Exercise generator on a program with two source files from test-code base
+    with --gen-includes-dir and --gen-source-dir arguments.
+    """
+    codedir = LocTestCodeDir + '/two-files-program/'
+    (retval, num_files, max_num_lines, file_w_max_num_lines) = \
+      loc_main.do_main(['--src-root-dir', codedir,
+                        '--gen-includes-dir', codedir,
+                        '--gen-source-dir', codedir,
                         '--verbose'])
     assert retval is True
     assert num_files == 2
