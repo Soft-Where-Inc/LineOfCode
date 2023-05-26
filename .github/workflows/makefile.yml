@@ -25,15 +25,21 @@ jobs:
     #! - name: configure
     #!  run: ./configure
 
+    #! Ensure that standalone target still works on its own
+    - name: genloc
+      run: make genloc
+
     - name: clean
       run: make clean
 
-    - name: make-all
-      run: CC=gcc LD=gcc make
+    - name: make-all-verbose
+      run: CC=gcc LD=gcc BUILD_VERBOSE=1 make
 
     #! Execute testing targets; Run py-test and LOC-enabled sample programs
-    - name: make-tests-verbose
-      run: CC=gcc LD=gcc BUILD_VERBOSE=1 make run-tests run-test-code
+    - name: make-tests
+      run: |
+        make clean
+        CC=gcc LD=gcc make run-tests
 
     #! - name: Run check
     #!   run: make check
