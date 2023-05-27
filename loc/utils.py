@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 ################################################################################
 # utils.py
+# SPDX-License-Identifier: Apache-2.0
+################################################################################
 """
 Purpose: Utility helper methods used in different LOC Python scripts.
 """
-################################################################################
 
 import os
 from inspect import currentframe
