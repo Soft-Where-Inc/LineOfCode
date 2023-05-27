@@ -1,5 +1,7 @@
 # #############################################################################
 # LOC: Line-Of-Code: Makefile: build tests, example programs, run pytests
+# SPDX-License-Identifier: Apache-2.0
+#
 # Developed based on SplinterDB (https://github.com/vmware/splinterdb) Makefile
 # #############################################################################
 

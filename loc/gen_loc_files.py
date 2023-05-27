@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 ################################################################################
 # gen_loc_files.py
+# SPDX-License-Identifier: Apache-2.0
 ################################################################################
 """
 Script to go through the code line of any code base and generate a list
