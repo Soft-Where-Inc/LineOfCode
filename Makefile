@@ -16,9 +16,6 @@ ifndef BUILD_VERBOSE
    BUILD_VERBOSE=0
 endif
 
-# Boolean, so we run Python generator script only once.
-RUN_PYGEN=1
-
 # Setup echo formatting for messages.
 ifeq "$(BUILD_VERBOSE)" "1"
    COMMAND=
