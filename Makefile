@@ -44,7 +44,7 @@ TESTSDIR             = tests
 UNITDIR              = unit
 TEST_CODE            = test-code
 UNIT_TESTSDIR        = $(TESTSDIR)/$(UNITDIR)
-INCDIR               = $(UNIT_TESTSDIR)
+UNIT_INCDIR          = $(UNIT_TESTSDIR)
 LOCGENPY             = $(LOCPACKAGE)/gen_loc_files.py
 
 # ------------------------------------------------------------------------
@@ -84,25 +84,22 @@ genloc:
 # ##############################################################################
 # If you list both .h & .c file, generator gets triggered twice. List just one.
 # GENERATED := $(TESTSDIR)/$(UNITDIR)/loc.h $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
-GENERATED := $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
+UNIT_GENSRC                := $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
+SINGLE_FILE_PROGRAM_GENSRC := $(TEST_CODE)/single-file-program/loc_filenames.c
+TWO_FILES_PROGRAM_GENSRC   := $(TEST_CODE)/two-files-program/loc_filenames.c
+
+GENERATED := $(UNIT_GENSRC)                 \
+             $(SINGLE_FILE_PROGRAM_GENSRC)  \
+             $(TWO_FILES_PROGRAM_GENSRC)
 
 # Rule: Use Python generator script to generate this files
+# Rule will be triggered for objects defined to be dependent on $(GENERATED) sources.
+# Use the triggering target's dir-path to generate .h / .c files
 $(GENERATED):
 	@echo
 	@echo "Invoke LOC-generator triggered by: " $@
-	$(LOCGENPY) --gen-includes-dir  tests/unit --gen-source-dir tests/unit --src-root-dir tests/unit --verbose
+	$(LOCGENPY) --gen-includes-dir  $(dir $@) --gen-source-dir $(dir $@) --src-root-dir $(dir $@) --verbose
 	@echo
-
-ifeq "$(BUILD_VERBOSE)" "1"
-	@echo
-	$(info $$TEST_CODE_SRC     is [${TEST_CODE_SRC}])
-	$(info $$TEST_CODE_OBJS    is [${TEST_CODE_OBJS}])
-	$(info $$TEST_CODE_BIN_SRC is [${TEST_CODE_BIN_SRC}])
-	$(info $$TEST_CODE_BINS    is [${TEST_CODE_BINS}])
-	$(info $$UNIT_TESTSRC      is [${UNIT_TESTSRC}])
-	$(info $$GENERATED_OBJS    = [${GENERATED_OBJS}])
-	$(info $$UNIT_TESTOBJS     = [${UNIT_TESTOBJS}])
-endif
 
 # The rules to generate object files from the generated source files
 GENERATED_SRCS := $(filter %.c,$(GENERATED))
@@ -115,6 +112,7 @@ GENERATED_OBJS := $(GENERATED_SRCS:%.c=$(OBJDIR)/%.o)
 # unit-test binaries.
 # UNIT_TESTSRC := $(call rwildcard,$(UNIT_TESTSDIR),*.c)
 UNIT_TESTSRC := $(shell find $(TESTSDIR)/$(UNITDIR) -type f -name *.c -print)
+UNIT_TESTSRC += $(UNIT_GENSRC)
 
 # Objects from unit-test sources in tests/unit/ sub-dir, for unit-tests
 # Resolves to a list: obj/tests/unit/a.o obj/tests/unit/b.o obj/tests/unit/c.o
@@ -162,9 +160,23 @@ all-test-code: $(TEST_CODE_BINS)
 # ###################################################################
 # CFLAGS, LDFLAGS, ETC
 #
-CFLAGS=-DLOC_FILE_INDEX=$(patsubst %.c,LOC_%_c,$(notdir $<))
+# -----------------------------------------------------------------------------
+# Define CFLAGS to generate the -D clause to define LOC_FILE_INDEX
+# using the source file name as input:
+#  - Replace "-" in filename with "_"
+#  - Replace ".c" with "_c"
+# -----------------------------------------------------------------------------
+CFLAGS=-DLOC_FILE_INDEX=$(patsubst %.c,LOC_%_c,$(subst -,_,$(notdir $<)))
 
-INCLUDE = -I $(INCDIR)
+# -----------------------------------------------------------------------------
+# Define the include files' dir-path. All unit-tests need to include ctest.h,
+# which lives in top-level unit-tests dir.
+# The LOC-generated .h files will appear in each test-code program's src-dir.
+# Use this recursively defined variables to build the path to pick-up both
+# forms of #include .h files.
+# -----------------------------------------------------------------------------
+INCLUDE = -I ./$(UNIT_INCDIR)
+INCLUDE += -I ./$(dir $<)
 
 # use += here, so that extra flags can be provided via the environment
 
@@ -193,7 +205,18 @@ $(BINDIR)/%/.:
 #
 $(GENERATED_OBJS) :$(GENERATED)
 $(UNIT_TESTOBJS): $(GENERATED_OBJS)
-$(BINDIR)/unit_test: $(UNIT_TESTOBJS) $(GENERATED_OBJS)
+$(BINDIR)/unit_test: $(UNIT_TESTOBJS)
+
+ifeq "$(BUILD_VERBOSE)" "1"
+	@echo
+	$(info $$TEST_CODE_SRC     = [${TEST_CODE_SRC}])
+	$(info $$TEST_CODE_OBJS    = [${TEST_CODE_OBJS}])
+	$(info $$TEST_CODE_BIN_SRC = [${TEST_CODE_BIN_SRC}])
+	$(info $$TEST_CODE_BINS    = [${TEST_CODE_BINS}])
+	$(info $$UNIT_TESTSRC      = [${UNIT_TESTSRC}])
+	$(info $$GENERATED_OBJS    = [${GENERATED_OBJS}])
+	$(info $$UNIT_TESTOBJS     = [${UNIT_TESTOBJS}])
+endif
 
 # ###################################################################
 # The dependencies for each test-code sample program
@@ -202,15 +225,23 @@ $(BINDIR)/unit_test: $(UNIT_TESTOBJS) $(GENERATED_OBJS)
 # There can be more than one .o's linked to create test-code example
 # program.
 
-$(BINDIR)/$(TEST_CODE)/single-file-program: $(OBJDIR)/$(TEST_CODE)/single-file-program/single-file-main.o
+SINGLE_FILE_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/single-file-program -type f -name *.c -print)
+SINGLE_FILE_PROGRAM_TESTSRC += $(SINGLE_FILE_PROGRAM_GENSRC)
 
-$(BINDIR)/$(TEST_CODE)/two-files-program: $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-main.o \
-                                          $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-file1.o
+SINGLE_FILE_PROGRAM_OBJS := $(SINGLE_FILE_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
+
+$(BINDIR)/$(TEST_CODE)/single-file-program: $(SINGLE_FILE_PROGRAM_OBJS)
+
+TWO_FILES_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/two-files-program -type f -name *.c -print)
+TWO_FILES_PROGRAM_TESTSRC += $(TWO_FILES_PROGRAM_GENSRC)
+
+TWO_FILES_PROGRAM_OBJS := $(TWO_FILES_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
+
+$(BINDIR)/$(TEST_CODE)/two-files-program: $(TWO_FILES_PROGRAM_OBJS)
 
 # ###################################################################
 # RECIPES:
 
-# RESOLVE: Need to re-define INCLUDE depending on target.
 # For all-test-code, we need to use -I test-code/<subdir>
 # Dependencies for the main executables
 COMPILE.c = $(CC) $(CFLAGS) $(INCLUDE) -c
@@ -234,7 +265,7 @@ $(BINDIR)/%: | $$(@D)/.
 
 unit_test: $(BINDIR)/unit_test
 
-#*************************************************************#
+# ###################################################################
 # Testing
 #
 

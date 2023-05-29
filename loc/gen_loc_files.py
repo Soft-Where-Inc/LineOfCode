@@ -446,6 +446,7 @@ def gen_loc_interface_doth(doth_fh, loc_dotc):
         loc_dotc    - Name of generated dot-c file
     """
 
+    fprintf(doth_fh, "#include <inttypes.h>    /* Needed for uint32_t */\n")
     fprintf(doth_fh, "#include \"loc_tokens.h\"\n\n")
 
     nbits_files = 15
@@ -811,8 +812,12 @@ def gen_loc_cflags():
     sufficient to compile any source file which may use one of the LOC-macros.
 
     For now, this is a simplistic definition.
+    Define CFLAGS to generate the -D clause to define LOC_FILE_INDEX
+    using the source file name as input:
+      - Replace "-" in filename with "_"
+      - Replace ".c" with "_c"
     """
-    print("CFLAGS='-DLOC_FILE_INDEX=$(patsubst %.c,LOC_%_c,$(notdir $<))'")
+    print("CFLAGS='-DLOC_FILE_INDEX=$(patsubst %.c,$(subst -,_,$(notdir $<)))'")
 
 ###############################################################################
 def find_max_name_lengths(file_names):
