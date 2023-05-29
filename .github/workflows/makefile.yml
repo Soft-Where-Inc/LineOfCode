@@ -33,13 +33,13 @@ jobs:
       run: make clean
 
     - name: make-all-verbose
-      run: CC=gcc LD=gcc BUILD_VERBOSE=1 make
+      run: CC=gcc LD=g++ BUILD_VERBOSE=1 make
 
     #! Execute testing targets; Run py-test and LOC-enabled sample programs
     - name: make-tests
       run: |
         make clean
-        CC=gcc LD=gcc make run-tests
+        CC=gcc LD=g++ make run-tests
 
     #! - name: Run check
     #!   run: make check

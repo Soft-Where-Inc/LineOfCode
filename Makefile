@@ -35,6 +35,11 @@ else
    $(error Unknown BUILD_VERBOSE mode "$(BUILD_VERBOSE)".  Valid values are "0" or "1". Default is "0")
 endif
 
+# Compilers to use
+CC  ?= gcc
+CXX ?= g++
+LD  ?= gcc
+
 # ###################################################################
 # SOURCE DIRECTORIES AND FILES
 #
@@ -84,15 +89,17 @@ genloc:
 # ##############################################################################
 # If you list both .h & .c file, generator gets triggered twice. List just one.
 # GENERATED := $(TESTSDIR)/$(UNITDIR)/loc.h $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
-UNIT_GENSRC                := $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
-SINGLE_FILE_PROGRAM_GENSRC := $(TEST_CODE)/single-file-program/loc_filenames.c
-TWO_FILES_PROGRAM_GENSRC   := $(TEST_CODE)/two-files-program/loc_filenames.c
+UNIT_GENSRC                    := $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
+SINGLE_FILE_PROGRAM_GENSRC     := $(TEST_CODE)/single-file-program/loc_filenames.c
+TWO_FILES_PROGRAM_GENSRC       := $(TEST_CODE)/two-files-program/loc_filenames.c
+SINGLE_FILE_CPP_PROGRAM_GENSRC := $(TEST_CODE)/single-file-cpp-program/loc_filenames.c
 
-GENERATED := $(UNIT_GENSRC)                 \
-             $(SINGLE_FILE_PROGRAM_GENSRC)  \
-             $(TWO_FILES_PROGRAM_GENSRC)
+GENERATED := $(UNIT_GENSRC)                     \
+             $(SINGLE_FILE_PROGRAM_GENSRC)      \
+             $(TWO_FILES_PROGRAM_GENSRC)        \
+             $(SINGLE_FILE_CPP_PROGRAM_GENSRC)
 
-# Rule: Use Python generator script to generate this files
+# Rule: Use Python generator script to generate the LOC-files
 # Rule will be triggered for objects defined to be dependent on $(GENERATED) sources.
 # Use the triggering target's dir-path to generate .h / .c files
 $(GENERATED):
@@ -119,11 +126,13 @@ UNIT_TESTSRC += $(UNIT_GENSRC)
 UNIT_TESTOBJS := $(UNIT_TESTSRC:%.c=$(OBJDIR)/%.o)
 
 # ---- Symbols to build test-code sample programs
-TEST_CODE_SRC := $(shell find $(TEST_CODE) -type f -name *.c -print)
+# ---- Pick-up both C and C++ sources (Support both *.cpp and *.cc for C++).
+TEST_CODE_SRC := $(shell find $(TEST_CODE) -type f \( -name *.c -o -name *.cpp \) -print)
 TEST_CODE_OBJS := $(TEST_CODE_SRC:%.c=$(OBJDIR)/%.o)
+TEST_CODE_OBJS := $(TEST_CODE_OBJS:%.cpp=$(OBJDIR)/%.o)
 
 # Grab the "main.c" for each test-code sample program
-TEST_CODE_BIN_SRC=$(filter %-main.c, $(TEST_CODE_SRC))
+TEST_CODE_BIN_SRC=$(filter %-main.c %-main.cpp, $(TEST_CODE_SRC))
 
 # ----------------------------------------------------------------------------
 # Generate location / name of test-code sample program binary, using built-in
@@ -136,7 +145,8 @@ TEST_CODE_BIN_SRC=$(filter %-main.c, $(TEST_CODE_SRC))
 #   build/release/bin/test-code/single-file-program
 #   build/release/bin/test-code/two-files-program
 #
-TEST_CODE_BINS_TMP=$(TEST_CODE_BIN_SRC:$(TEST_CODE)/%-main.c=$(BINDIR)/$(TEST_CODE)/%-program)
+TEST_CODE_BINS_TMP := $(TEST_CODE_BIN_SRC:$(TEST_CODE)/%-main.c=$(BINDIR)/$(TEST_CODE)/%-program)
+TEST_CODE_BINS_TMP := $(TEST_CODE_BINS_TMP:$(TEST_CODE)/%-main.cpp=$(BINDIR)/$(TEST_CODE)/%-program)
 TEST_CODE_BINS=$(patsubst %program/, %program, $(dir $(TEST_CODE_BINS_TMP)) )
 
 # ###################################################################
@@ -164,9 +174,9 @@ all-test-code: $(TEST_CODE_BINS)
 # Define CFLAGS to generate the -D clause to define LOC_FILE_INDEX
 # using the source file name as input:
 #  - Replace "-" in filename with "_"
-#  - Replace ".c" with "_c"
+#  - Replace "." with "_" (*.c -> *_c, *.cpp -> *_cpp, *.cc -> *_cc)
 # -----------------------------------------------------------------------------
-CFLAGS=-DLOC_FILE_INDEX=$(patsubst %.c,LOC_%_c,$(subst -,_,$(notdir $<)))
+CFLAGS=-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))
 
 # -----------------------------------------------------------------------------
 # Define the include files' dir-path. All unit-tests need to include ctest.h,
@@ -207,17 +217,6 @@ $(GENERATED_OBJS) :$(GENERATED)
 $(UNIT_TESTOBJS): $(GENERATED_OBJS)
 $(BINDIR)/unit_test: $(UNIT_TESTOBJS)
 
-ifeq "$(BUILD_VERBOSE)" "1"
-	@echo
-	$(info $$TEST_CODE_SRC     = [${TEST_CODE_SRC}])
-	$(info $$TEST_CODE_OBJS    = [${TEST_CODE_OBJS}])
-	$(info $$TEST_CODE_BIN_SRC = [${TEST_CODE_BIN_SRC}])
-	$(info $$TEST_CODE_BINS    = [${TEST_CODE_BINS}])
-	$(info $$UNIT_TESTSRC      = [${UNIT_TESTSRC}])
-	$(info $$GENERATED_OBJS    = [${GENERATED_OBJS}])
-	$(info $$UNIT_TESTOBJS     = [${UNIT_TESTOBJS}])
-endif
-
 # ###################################################################
 # The dependencies for each test-code sample program
 # Every example program of the form bin/test-code/<eg-prog> depends on
@@ -225,6 +224,7 @@ endif
 # There can be more than one .o's linked to create test-code example
 # program.
 
+# ----
 SINGLE_FILE_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/single-file-program -type f -name *.c -print)
 SINGLE_FILE_PROGRAM_TESTSRC += $(SINGLE_FILE_PROGRAM_GENSRC)
 
@@ -232,19 +232,38 @@ SINGLE_FILE_PROGRAM_OBJS := $(SINGLE_FILE_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
 
 $(BINDIR)/$(TEST_CODE)/single-file-program: $(SINGLE_FILE_PROGRAM_OBJS)
 
+# ----
 TWO_FILES_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/two-files-program -type f -name *.c -print)
 TWO_FILES_PROGRAM_TESTSRC += $(TWO_FILES_PROGRAM_GENSRC)
 
 TWO_FILES_PROGRAM_OBJS := $(TWO_FILES_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
 
 $(BINDIR)/$(TEST_CODE)/two-files-program: $(TWO_FILES_PROGRAM_OBJS)
+$(BINDIR)/$(TEST_CODE)/single-file-program: $(OBJDIR)/$(TEST_CODE)/single-file-program/single-file-main.o
+
+$(BINDIR)/$(TEST_CODE)/two-files-program: $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-main.o \
+                                          $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-file1.o
+
+# ----
+SINGLE_FILE_CPP_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/single-file-cpp-program -type f -name *.cpp -print)
+SINGLE_FILE_CPP_PROGRAM_TESTSRC += $(SINGLE_FILE_CPP_PROGRAM_GENSRC)
+
+SINGLE_FILE_CPP_PROGRAM_OBJS := $(SINGLE_FILE_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
+$(BINDIR)/$(TEST_CODE)/single-file-cpp-program: $(SINGLE_FILE_CPP_PROGRAM_OBJS)
+
+# ----
+# FIXME: This program needs C++20 support, so currently it's not being built.
+SOURCE_LOCATION_CPP_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/source-location-cpp-program -type f -name *.cpp -print)
+SOURCE_LOCATION_CPP_PROGRAM_OBJS := $(SOURCE_LOCATION_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
+$(BINDIR)/$(TEST_CODE)/source-location-cpp-program: $(SOURCE_LOCATION_CPP_PROGRAM_OBJS)
 
 # ###################################################################
 # RECIPES:
 
 # For all-test-code, we need to use -I test-code/<subdir>
 # Dependencies for the main executables
-COMPILE.c = $(CC) $(CFLAGS) $(INCLUDE) -c
+COMPILE.c   = $(CC) $(CFLAGS) $(INCLUDE) -c
+COMPILE.cpp = $(CXX) $(CFLAGS) $(INCLUDE) -c
 
 # Compile each .c file into its .o
 # Also define a dependency on the dir in which .o will be produced (@D).
@@ -252,6 +271,11 @@ COMPILE.c = $(CC) $(CFLAGS) $(INCLUDE) -c
 $(OBJDIR)/%.o: %.c | $$(@D)/.
 	$(BRIEF_FORMATTED) "%-20s %-50s [%s]\n" Compiling $< $@
 	$(COMMAND) $(COMPILE.c) $< -o $@
+	$(PROLIX) # blank line
+
+$(OBJDIR)/%.o: %.cpp | $$(@D)/.
+	$(BRIEF_FORMATTED) "%-20s %-50s [%s]\n" Compiling $< $@
+	$(COMMAND) $(COMPILE.cpp) $< -o $@
 	$(PROLIX) # blank line
 
 # Link .o's to product running binary
@@ -264,6 +288,17 @@ $(BINDIR)/%: | $$(@D)/.
 	$(PROLIX) # blank line
 
 unit_test: $(BINDIR)/unit_test
+
+ifeq "$(BUILD_VERBOSE)" "1"
+	@echo
+	$(info $$TEST_CODE_SRC     = [${TEST_CODE_SRC}])
+	$(info $$TEST_CODE_OBJS    = [${TEST_CODE_OBJS}])
+	$(info $$TEST_CODE_BIN_SRC = [${TEST_CODE_BIN_SRC}])
+	$(info $$TEST_CODE_BINS    = [${TEST_CODE_BINS}])
+	$(info $$UNIT_TESTSRC      = [${UNIT_TESTSRC}])
+	$(info $$GENERATED_OBJS    = [${GENERATED_OBJS}])
+	$(info $$UNIT_TESTOBJS     = [${UNIT_TESTOBJS}])
+endif
 
 # ###################################################################
 # Testing
