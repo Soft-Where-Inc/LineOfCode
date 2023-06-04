@@ -78,6 +78,7 @@ def do_main(args) -> (bool, int, int, str):
     src_dirname      = tmp_dir if parsed_args.src_dirname is None else parsed_args.src_dirname
     verbose          = parsed_args.verbose
     gen_cflags       = parsed_args.gen_cflags
+    gen_cflags_brief = parsed_args.gen_cflags_brief
     loc_debug        = parsed_args.debug_script
     dump_dup_files   = parsed_args.dump_dup_files
 
@@ -170,8 +171,8 @@ def do_main(args) -> (bool, int, int, str):
     if cc_rc != 0:
         sys.exit(1)
 
-    if gen_cflags:
-        gen_loc_cflags()
+    if gen_cflags or gen_cflags_brief:
+        gen_loc_cflags(gen_cflags_brief)
 
     return (True, max_file_num, max_num_lines, file_w_max_num_lines)
     # pylint: enable-msg=too-many-statements
@@ -212,6 +213,11 @@ def loc_parse_args(args):
                         , action='store_true'
                         , default=False
                         , help='Generate suggested CFLAGS to run Make with.')
+
+    parser.add_argument('--gen-cflags-brief', dest='gen_cflags_brief'
+                        , action='store_true'
+                        , default=False
+                        , help='Generate the brief CFLAGS syntax to run Make with.')
 
     parser.add_argument('--gen-includes-dir', dest='inc_dirname'
                         , metavar='<include-files-dir>'
@@ -807,17 +813,27 @@ def gen_loc_file_banner_msg(file_hdl, src_dir, file_name):
 ''')
 
 ###############################################################################
-def gen_loc_cflags():
-    """Generate a suggested CFLAGS directive which, in most cases, will be
+def gen_loc_cflags(brief):
+    """
+    Generate a suggested CFLAGS directive which, in most cases, will be
     sufficient to compile any source file which may use one of the LOC-macros.
 
     For now, this is a simplistic definition.
     Define CFLAGS to generate the -D clause to define LOC_FILE_INDEX
     using the source file name as input:
       - Replace "-" in filename with "_"
-      - Replace ".c" with "_c"
+      - Replace ".c" with "_c" (Should work for *.cpp and *.cc files.)
+
+    Parameters:
+        brief - Emit just the CFLAGS syntax, so the output can be
+                appended to "CFLAGS=" clause to automate the build
+                w/o having to edit the Makefile.
     """
-    print("CFLAGS='-DLOC_FILE_INDEX=$(patsubst %.c,$(subst -,_,$(notdir $<)))'")
+    cflags_clause = "'-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))'"
+    if brief:
+        print(cflags_clause)
+    else:
+        print("CFLAGS =",cflags_clause)
 
 ###############################################################################
 def find_max_name_lengths(file_names):
