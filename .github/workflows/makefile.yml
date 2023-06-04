@@ -41,6 +41,18 @@ jobs:
         make clean
         CC=gcc LD=g++ make run-tests
 
+    #! Execute testing targets; Run py-test and LOC-enabled sample programs
+    - name: test-make-with-external-cflags
+      run: |
+        make clean
+        CC=gcc LD=g++ CFLAGS='-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))' make -f Makefile.ext-CFLAGS  run-tests
+
+    #! Same as above, but just feed the CFLAGS emitted by Py-generator.
+    - name: test-make-with-py-gen-emitted-cflags
+      run: |
+        make clean
+        CC=gcc LD=g++ CFLAGS=$(./loc/gen_loc_files.py --src-root-dir ./test-code/single-file-cc-program --gen-cflags-brief) make -f Makefile.ext-CFLAGS run-tests
+
     #! - name: Run check
     #!   run: make check
 
