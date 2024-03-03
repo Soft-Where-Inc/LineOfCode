@@ -50,8 +50,7 @@ def test_all_open_source_code_bases():
     max_subdir_namelen = 0
     for subdir in sorted(subdirs):
         subdir_namelen = len(os.path.basename(subdir))
-        if subdir_namelen > max_subdir_namelen:
-            max_subdir_namelen = subdir_namelen
+        max_subdir_namelen = max(subdir_namelen, max_subdir_namelen)
 
     for subdir in sorted(subdirs):
         (retval, num_files, max_num_lines, file_w_max_num_lines) = run_loc_for_one_oss_code(subdir)
@@ -63,8 +62,7 @@ def test_all_open_source_code_bases():
               + f', max_num_lines={max_num_lines:8d} {file_w_max_num_lines}')
 
         sum_num_files += num_files
-        if max_num_lines > global_max_num_lines:
-            global_max_num_lines = max_num_lines
+        global_max_num_lines = max(max_num_lines, global_max_num_lines)
 
     print(f'\nProcessed {num_oss_code_bases} OSS source code-bases'
             + f', {sum_num_files} files, global max_num_lines={global_max_num_lines}.')

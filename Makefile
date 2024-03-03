@@ -23,7 +23,9 @@ ifeq "$(BUILD_VERBOSE)" "1"
    COMMAND=
    PROLIX=@echo
    BRIEF=@ >/dev/null echo
-   BRIEF_FORMATTED=@ >/dev/null echo
+   # Always print message describe step executed, even in verbose mode.
+   # BRIEF_FORMATTED=@ >/dev/null echo
+   BRIEF_FORMATTED=@printf
    BRIEF_PARTIAL=@echo -n >/dev/null
 else ifeq "$(BUILD_VERBOSE)" "0"
    COMMAND=@
