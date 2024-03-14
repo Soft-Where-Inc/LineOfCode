@@ -59,3 +59,8 @@ dkms.conf
 
 # Ignore build/ outputs from make
 build/
+
+# Ignore LOC-generated files.
+loc*.h
+loc_filenames*.c
+*_loc
