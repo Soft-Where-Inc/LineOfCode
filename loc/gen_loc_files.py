@@ -76,6 +76,7 @@ def do_main(args) -> (bool, int, int, str):
     src_root_dir     = parsed_args.src_root_dirname
     inc_dirname      = tmp_dir if parsed_args.inc_dirname is None else parsed_args.inc_dirname
     src_dirname      = tmp_dir if parsed_args.src_dirname is None else parsed_args.src_dirname
+    loc_dirname      = tmp_dir if parsed_args.loc_dirname is None else parsed_args.loc_dirname
     verbose          = parsed_args.verbose
     gen_cflags       = parsed_args.gen_cflags
     gen_cflags_brief = parsed_args.gen_cflags_brief
@@ -91,6 +92,7 @@ def do_main(args) -> (bool, int, int, str):
 
     inc_dirname = os.path.abspath(inc_dirname)
     src_dirname = os.path.abspath(src_dirname)
+    loc_dirname = os.path.abspath(loc_dirname) + '/'
 
     if loc_debug:
         print_loc_vars(tmp_dir, src_root_dir, inc_dirname, src_dirname)
@@ -149,7 +151,7 @@ def do_main(args) -> (bool, int, int, str):
     # Even though generated .h/.c files may be in project's source-tree,
     # generate the compiled decoder binary always in /tmp, as we don't know
     # what the project's build-area dir-rules may be.
-    full_loc_decode_dotc = tmp_dir + '/' + loc_decode_dotc
+    full_loc_decode_dotc = tmp_dir + loc_decode_dotc
 
     with open(full_loc_decode_dotc, 'w', encoding="utf8") as loc_fh:
         gen_loc_file_banner_msg(loc_fh, src_root_dir, loc_decode_dotc)
@@ -159,14 +161,17 @@ def do_main(args) -> (bool, int, int, str):
         if verbose:
             fprintf(sys.stdout, 'Generated ' + full_loc_decode_dotc + '\n')
 
-    cc_rc = gen_cc_loc_decoder(tmp_dir, loc_decode_bin, loc_decode_dotc,
+    # Pick up the decoder's source from tmp but use the user-specified
+    # dir-name for output LOC-binary location.
+    cc_rc = gen_cc_loc_decoder(tmp_dir, loc_dirname, loc_decode_bin,
+                               loc_decode_dotc,
                                full_loct_doth, full_loc_doth,
                                full_loc_dotc, loc_debug)
     if verbose:
         if cc_rc == 0:
-            fprintf(sys.stdout, 'Generated ' + tmp_dir + loc_decode_bin + '\n')
+            fprintf(sys.stdout, 'Generated ' + loc_dirname + loc_decode_bin + '\n')
         else:
-            fprintf(sys.stderr, 'Failed to generate ' + tmp_dir + loc_decode_bin + '\n')
+            fprintf(sys.stderr, 'Failed to generate ' + loc_dirname + loc_decode_bin + '\n')
 
     if cc_rc != 0:
         sys.exit(1)
@@ -231,6 +236,13 @@ def loc_parse_args(args):
                         , default=None
                         , help='Source files dir name, default: ' + LOC_PKGSRC_DIR
                                 + ' Generated .c files go here.')
+
+    parser.add_argument('--loc-decoder-dir', dest='loc_dirname'
+                        , metavar='<LOC-decoder-binary-dir>'
+                        , default=None
+                        , help='Project-specific standalone LOC decoder binary'
+                                + ' dir name, default: '
+                                + tempfile.gettempdir())
 
     # ======================================================================
     # Debugging support
@@ -594,6 +606,7 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
     fprintf(loc_fh, "#include <stdio.h>\n")
     fprintf(loc_fh, "#include <stdint.h>\n")
     fprintf(loc_fh, "#include <stdlib.h>\n")
+    fprintf(loc_fh, "#include <string.h>\n")
     fprintf(loc_fh, "#include \"%s\"\n", loc_doth)
 
     fprintf(loc_fh, "// clang-format off\n")
@@ -603,7 +616,9 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
     fprintf(loc_fh, "{\n")
 
     # Generate basic help/usage, custom-fit for code-base being LOC'ified
-    fprintf(loc_fh, "    if (argc == 1) {\n")
+    fprintf(loc_fh, "    if (argc <= 1) {\n")
+    fprintf(loc_fh, "        printf(\"Usage: %%s [--brief] [<loc-ID-values>+]"
+                                    + "\\n\", argv[0]);\n")
     fprintf(loc_fh, "        printf(\"Max-file-number: %d\\n\");\n", max_file_num)
     # pylint: disable-msg=line-too-long
     fprintf(loc_fh, "        printf(\"Examples: Specify LOC-encoded value you wish to decode.\\n\");\n")
@@ -676,11 +691,27 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
             "LOC_ENCODE(" + str(file_numbers[2]) + ", 31)",
             "LOC_ENCODE(" + str(file_numbers[3]) + ", 44)")
 
+    fprintf(loc_fh, "        return(0);\n")
     fprintf(loc_fh, "    }\n")
-    fprintf(loc_fh, "    for (int i = 1; i < argc; i++) {\n")
+
+    fprintf(loc_fh, "\n")
+
+    # Parse the --brief arg supplied at run-time
+    fprintf(loc_fh, "    int brief = (strncmp(argv[1], \"--brief\", 7) == 0);\n")
+
+    # If the decoder's 1st arg is --brief, start iterating from next arg
+    # to decode args assuming they are loc-IDs.
+    fprintf(loc_fh, "    int i = brief + 1;\n")
+
+    # Generate the actual body of the decoder's source.
+    fprintf(loc_fh, "    for (; i < argc; i++) {\n")
     fprintf(loc_fh, "        loc_t loc = atoi(argv[i]);\n")
-    fprintf(loc_fh, "        printf(\"%%u: [fnum=%%d] %%s:%%d \\n\",\n")
-    fprintf(loc_fh, "               loc, LOC_FILE_TOKEN(loc), LOC_FILE(loc), LOC_LINE(loc));\n")
+    fprintf(loc_fh, "        if (brief) {\n")
+    fprintf(loc_fh, "            printf(\"%%s:%%d \\n\", LOC_FILE(loc), LOC_LINE(loc));\n")
+    fprintf(loc_fh, "        } else { \n")
+    fprintf(loc_fh, "            printf(\"%%u: [fnum=%%d] %%s:%%d \\n\",\n")
+    fprintf(loc_fh, "                   loc, LOC_FILE_TOKEN(loc), LOC_FILE(loc), LOC_LINE(loc));\n")
+    fprintf(loc_fh, "        }\n")
     fprintf(loc_fh, "   }\n")
     fprintf(loc_fh, "}\n")
 
@@ -696,7 +727,7 @@ def gen_loc_decoder(loc_fh, max_file_num, loc_doth, loc_dotc, loc_decode_dotc, l
 #      https://stackoverflow.com/questions/32984058/ld-cant-open-output-file-for-writing-bin-s-errno-2-for-architecture-x86-64
 # pylint: enable-msg=line-too-long
 # #############################################################################
-def gen_cc_loc_decoder(tmpdir, loc_decode_bin, loc_decode_dotc,
+def gen_cc_loc_decoder(tmpdir, loc_dirname, loc_decode_bin, loc_decode_dotc,
                        full_loct_doth, full_loc_doth, full_loc_dotc,
                        loc_debug) -> int:
     # pylint: disable-msg=too-many-arguments
@@ -731,10 +762,11 @@ def gen_cc_loc_decoder(tmpdir, loc_decode_bin, loc_decode_dotc,
     if loc_debug:
         print(  "tmp_loc_dotc    = " + tmp_loc_dotc + "\n"
               + "loc_decode_dotc = " + loc_decode_dotc + "\n"
+              + "loc_dirname     = " + loc_dirname + "\n"
               + "loc_decode_bin  = " + loc_decode_bin)
 
     try:
-        result = sp.run(["cc", "-o", tmpdir + loc_decode_bin,
+        result = sp.run(["cc", "-o", loc_dirname + loc_decode_bin,
                           "-I" , tmpdir,
                           tmpdir + tmp_loc_dotc,
                           tmpdir + loc_decode_dotc

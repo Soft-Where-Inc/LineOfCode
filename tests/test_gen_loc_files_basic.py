@@ -8,6 +8,7 @@ end-to-end.
 
 # #############################################################################
 import os
+import subprocess as sp
 import pytest
 import loc.gen_loc_files as loc_main
 
@@ -158,3 +159,71 @@ def test_two_files_program_with_gen_dir_args():
     assert num_files == 2
     assert max_num_lines > 0
     assert file_w_max_num_lines.endswith('two-files-main.c')
+    verify_file_exists(codedir, 'loc.h')
+    verify_file_exists(codedir, 'loc_tokens.h')
+    verify_file_exists(codedir, 'loc_filenames.c')
+
+# #############################################################################
+def test_two_files_program_with_loc_decoder_dir_arg():
+    """
+    Exercise generator on a program with two source files from test-code base
+    with --loc-decoder-dir . Verify that binary is produced as expected.
+    Execute the binary w/default and with one arg, to ensure that it basically
+    works.
+    """
+    binname = 'two-files-program'
+    codedir = LocTestCodeDir + '/' + binname + '/'
+    (retval, num_files, max_num_lines, file_w_max_num_lines) = \
+      loc_main.do_main(['--src-root-dir', codedir,
+                        '--loc-decoder-dir', codedir,
+                        '--verbose'])
+    assert retval is True
+    assert num_files == 2
+    assert max_num_lines > 0
+    assert file_w_max_num_lines.endswith('two-files-main.c')
+
+    binname_loc = binname + '_loc'
+    verify_file_exists(codedir, binname_loc)
+
+    print(f"Execute LOC-decoder binary {binname_loc}:\n")
+    exec_binary([codedir + '/' + binname + '_loc'])
+
+    # Execute --brief arg, w/known hard-coded input LOC-IDs.
+    print(f"Execute LOC-decoder binary {binname_loc} --brief:\n")
+    exec_binary([codedir + '/' + binname + '_loc', '--brief',
+                 '65540', '65541', '131082', '131089'])
+
+    # Execute LOC-decoder w/known hard-coded input LOC-IDs.
+    print(f"Execute LOC-decoder binary {binname_loc}:\n")
+    exec_binary([codedir + '/' + binname + '_loc',
+                 '65540', '65541', '131082', '131089'])
+
+# #############################################################################
+# Helper test methods
+# #############################################################################
+
+def test_verify_file_exists():
+    """Exerciser for verify_file_exists() method."""
+    verify_file_exists(LocTestsDir, os.path.basename(__file__))
+    # verify_file_exists(LocTestsDir, __file__ + 'xxx')
+
+# #############################################################################
+def verify_file_exists(dirname:str, filename:str) -> bool:
+    """
+    Check that the expected [generated] file exists.
+    """
+    assert os.path.exists(dirname + '/' + filename) is True
+
+# #############################################################################
+def exec_binary(cmdargs:list):
+    """Execute a binary, with args, and print output to stdout."""
+    try:
+        result = sp.run(cmdargs, text=True, check=True, capture_output=True)
+    except sp.CalledProcessError as exc:
+        print("sp.run() Status: FAIL, rc=", exc.returncode,
+              "\nargs=", exc.args,
+              "\nstdout=", exc.stdout,
+              "\nstderr=", exc.stderr)
+    else:
+        for line in str(result).split('\\n'):
+            print(line)
