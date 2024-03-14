@@ -98,6 +98,8 @@ is the basename of the source root-dir for the code-base to which you are
 applying this LOC machinery. Currently this binary is generated in the default
 $TMPDIR (`tempfile.gettempdir()`) for your Python environment.
 
+Use the `--loc-decoder-dir` argument to relocate this generated binary.
+
 ```mermaid
 
 flowchart LR
@@ -120,7 +122,7 @@ flowchart LR
 
     genf -- cc --> gen
     main -- cc --> gen
-    gen --> dec
+    gen -- "--loc-decoder-dir" --> dec
 
   end
 ```
