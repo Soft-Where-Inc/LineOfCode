@@ -1,45 +1,149 @@
-# LOC - Line Of Code, aka Code Location
+# LOC - Line Of Code, _aka_ Code Location
 
 Frequently for instrumentation, tracing and diagnostics, one needs to track the
-code-location of where certain things occur. An example is to track the 
+code-location where certain things occur. An example is to track the
 place where memory allocation is done, or some other resource such as a lock
-request is obtained. 
+request is obtained.
 
-LOC is a technique to encode the line-of-code, i.e., the file name and line
-number pair, as an extremely compact 4-byte integer. (The line-of-code is
-also referred to as the code-location or call-site.)
+LOC is a technique to encode the line-of-code, as an extremely compact 4-byte
+integer. (The line-of-code is also referred to as the code-location or call-site.)
+The encoded LOC-ID can be saved-off in tracking structures and can later be decoded
+to its constituent file name and line number.
+
 
 The LOC-encoded integer can then be stored in your core structures,
 passed-around the stack, and generally manipulated as an opaque integer.
 
-This repository contains a [Python script](./loc/gen_loc_files.py)
-that generates core LOC interface `.h` files and basic `.c` files which you
-can then integrate with your C/C++ code-base.
+This repository contains two independent techniques to generate this 4-byte encoding:
 
-The generated LOC header files provide encoding macros to generate the 4-byte
-encoded line-of-code (i.e, code-location) and decoding macros to unpack the
-encoded integer value into its consitituent file-name and line-number.
+- LOC: A [Python script](./loc/gen_loc_files.py) that processes the source files
+  in your project to generate core LOC interface `.h` files and basic `.c` files.
+  You can then integrate the generated files with your C/C++ code-base.
+  The generated `loc.h` contains the definitions to encode and decode the LOC-ID.
 
-Sample changes to `Makefile` are provided to show how to integrate the generated
-files into any typical C/C++ code base. Example programs are provided 
+  `Makefile` rules are needed to compile your source files that use the LOC interfaces.
+
+- LOC2: A similar technique that generates the encoding using named ELF-sections,
+  using the compiler `__attribute__` directive to name the user-defined section.
+  All LOC-interfaces are statically defined in [include/loc.h](./include/loc.h)
+  and [src/loc.c](./src/loc.c).
+
+  There is **no further need** for the Python generator script or special
+  `Makefile` rules with this approach.
+
+You must choose one of the two schemes; they are mutually exclusive.
+
+The LOC header file, `loc.h` defines the following macros:
+- `__LOC__`: To generate the encoded 4-byte LOC-ID of the code-location.
+- `LOC_FILE()`, `LOC_LINE()` to decode the LOC-ID to the file name and line number.
+- The LOC2 scheme additionally provides `LOC_FUNC()` macro to return the function name.
+
+Sample changes to `Makefile` are provided to show how to integrate the LOC-files
+into any typical C/C++ code base. Example programs are provided
 to demonstrate how to use this LOC encoding to drive diagnostcs & instrumentation
-with very little overhead of space consumed at run-time.
+with very little space-overhead consumed at run-time. There is zero overhead to
+generate the LOC-ID with both schemes as the encoding occurs at compile-time.
 
-Refer to the [Workflow](./Workflow.md) document for more details.
+## Basic Usage
+
+In its most simplest form, with either scheme, your code fragment will look something
+like the following:
+
+```
+// Include either the generated file, or the one from include/loc.h
+#include "loc.h"
+
+typedef struct c_metrics {
+    // Some interesting metrics / telemetry data your project needs to track.
+    ...
+
+    // Record the code-location where the metric, log-line was generated
+    loc_t loc;
+} C_METRICS;
+
+some_function(C_METRICS *metricsp) {
+
+    // Record telemetry data
+    metricsp->... Capture some data
+
+    // Record code-location where this data was gathered.
+    metricsp->loc = __LOC__;
+}
+```
+
+Later in your program, you can decode the code-location as follows (sample instrumentation code):
+
+```
+// Include either the generated file, or the one from include/loc.h
+#include "loc.h"
+
+debug_function() {
+    ...
+    printf("File='%s', Line=%d\n", LOC_FILE(metricsp->loc), LOC_LINE(metricsp->loc));
+
+    // This is available if you use the LOC2 technique described above
+    printf("[%s:%d] Func='%s'\n",
+            LOC_FILE(metrics->loc), LOC_LINE(metrics->loc), LOC_FUNC(metrics->loc));
+}
+```
+
+A sample output from the integration of this LOC technique with the
+[L3](https://github.com/undoio/l3)
+logging utility shows how the line-of-code encoding will be displayed:
+
+```
+$ L3_LOC_ENABLED=1 ./l3_dump.py /tmp/l3.c-small-test.dat ./build/release/bin/test-use-cases/single-file-C-program
+
+tid=170657 single-file-C-program/test-main.c:85  'Simple-log-msg-Args(1,2)' arg1=1 arg2=2
+tid=170657 single-file-C-program/test-main.c:86  'Potential memory overwrite (addr, size)' arg1=3735927486 arg2=1024
+tid=170657 single-file-C-program/test-main.c:87  'Invalid buffer handle (addr)' arg1=3203378125 arg2=0
+
+```
+
+In the above output, the fragment `single-file-C-program/test-main.c:85` on each
+line is generated by decoding a LOC-ID saved-off at run-time.
+
+### Documentation
+
+Refer to the [LOC-Workflow](./Docs/LOC-Workflow.md)
+or the [LOC2-Workflow](./Docs/LOC2-Workflow.md) documents for further details on
+how to integrate either of the LOC tracking techniques in your project's development
+workflow.
 
 ----
 ## Alternate Solutions
 
 Classical techniques that exist to track file-name / line-number pair usually
-require a `const char * file` pointer for the `__FILE__` macro, consuming 
+require a `const char * file` pointer for the `__FILE__` macro, consuming
 8-bytes and a 4-byte line number, given by the `__LINE__` macro. Passing
-this around on the stack requires at least 12 bytes. 
+this around on the stack requires at least 12 bytes. (It will usually require
+16 bytes when the pair is enclosed in a structure, for a accounting for
+compiler-padding).
 
 Morover, if you wish to store this pair in some common (diagnostic) structure,
-you will further need to allocate space for the file-name itself. 
+you will further need to allocate space for the file-name itself.
 Storing, say, a minimum of 8-characters for a file name plus line-number requires
 12 bytes, which can be reduced to, say, 10 bytes by storing the
 line number as `uint16_t`. It is not uncommon to save-off 12 to 14 chars of
 file-name, plus 4 to 2 bytes, respectively, of line-number, requiring a total
 of 16 bytes.
 
+C++ (v20 onwards) supports the
+[std::source_location](https://en.cppreference.com/w/cpp/utility/source_location)
+class definition to track  certain information about the source code, such as file
+ names, line numbers, and function names. However, the overhead of each instance
+ of this object, defined in the
+ [source_location header](https://en.cppreference.com/w/cpp/header/source_location),
+ seems to be 24 bytes.
+
+ This is far more than the compact 4-byte encoding provided by the LOC /
+  LOC2-techniques. The LOC2 encoding provides most of the information tracked by
+  `source_location` object except the column-number.
+  (That's probably a less-required piece of data.)
+
+------
+### Acknowledgements
+
+The LOC2 technique, based on ELF-named sections, was suggested initially,
+in 3/2024, by Charles Baylis. It has been integrated into this package with
+his approval and appropriate refinements.
