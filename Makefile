@@ -8,7 +8,7 @@
 .DEFAULT_GOAL := all
 
 help::
-	@echo 'Usage: make [<target>]'
+	@echo 'Usage: [BUILD_VERBOSE=1] CC=gcc LD=g++ make make [<target>]'
 	@echo 'Supported targets: clean all run-tests run-test-code'
 
 #
@@ -47,6 +47,7 @@ LD  ?= gcc
 #
 LOCPACKAGE           = loc
 SRCDIR               = src
+INCDIR               = include
 TESTSDIR             = tests
 UNITDIR              = unit
 TEST_CODE            = test-code
@@ -98,7 +99,7 @@ genloc:
 
 # If you list both .h & .c file, generator gets triggered twice. List just one.
 # GENERATED := $(TESTSDIR)/$(UNITDIR)/loc.h $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
-UNIT_GENSRC                    := $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
+UNIT_GENSRC                    := $(TESTSDIR)/$(UNITDIR)/single_file_src/loc_filenames.c
 SINGLE_FILE_PROGRAM_GENSRC     := $(TEST_CODE)/single-file-program/loc_filenames.c
 TWO_FILES_PROGRAM_GENSRC       := $(TEST_CODE)/two-files-program/loc_filenames.c
 SINGLE_FILE_CPP_PROGRAM_GENSRC := $(TEST_CODE)/single-file-cpp-program/loc_filenames.c
@@ -135,6 +136,7 @@ GENERATED_OBJS := $(GENERATED_SRCS:%.c=$(OBJDIR)/%.o)
 # UNIT_TESTSRC := $(call rwildcard,$(UNIT_TESTSDIR),*.c)
 UNIT_TESTSRC := $(shell find $(TESTSDIR)/$(UNITDIR) -type f -name *.c -print)
 UNIT_TESTSRC += $(UNIT_GENSRC)
+UNIT_TESTSRC += $(SRCDIR)/$(LOCPACKAGE).c
 
 # Objects from unit-test sources in tests/unit/ sub-dir, for unit-tests
 # Resolves to a list: obj/tests/unit/a.o obj/tests/unit/b.o obj/tests/unit/c.o
@@ -179,7 +181,7 @@ clean:
 	uname -a
 	$(CC) --version
 	rm -rf $(BUILD_ROOT)
-	find . \( -name "*loc*.c" -o -name "loc*.h" \)  -exec rm -rf {} \;
+	find ./tests ./test-code \( -name "*loc*.c" -o -name "loc*.h" \)  -exec rm -rf {} \;
 
 ####################################################################
 # The main targets
@@ -206,8 +208,9 @@ CFLAGS=-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))
 # Use this recursively defined variables to build the path to pick-up both
 # forms of #include .h files.
 # -----------------------------------------------------------------------------
-INCLUDE = -I ./$(UNIT_INCDIR)
+INCLUDE := -I ./$(UNIT_INCDIR)
 INCLUDE += -I ./$(dir $<)
+INCLUDE += -I ./$(INCDIR)
 
 # use += here, so that extra flags can be provided via the environment
 

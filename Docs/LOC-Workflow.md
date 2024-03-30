@@ -75,15 +75,26 @@ of the `LOC` macros. A normal make should successfully build your project's sour
 ```mermaid
 
 flowchart TB
-  subgraph Apply LOC-macros
+  subgraph Apply LOC-interfaces
   direction TB
 
-    id1([Your-Source-Code-Project changed to use LOC-macros])
-    mf(CFLAGS-applied to your Makefile)
+    loch(loc.h)
+    gen(loc/gen_loc_files.py)
+
+    id1([Your-Source-Code-Project changed to use LOC-interfaces])
+
+    loch -- "#include" --> id1
+    gen -- "--gen-cflags" --> mf
+
+    mf(CFLAGS-applied to your Makefile
+       to get changed files compiling with LOC)
+    loc(loc_filenames.c)
     build((Build - cmake))
 
     id1 --> build
     mf --> build
+    loc --> build
+    build --> program-binary
   end
 ```
 
@@ -156,7 +167,7 @@ Here are the typical steps to follow in your development workflow:
   diagnostic / instrumentation code to **decode** the encoded code-location.
 
   The
-  [unit-test sources](./tests/unit/single_file_src/single_file_prog_test.c)
+  [unit-test sources](../tests/unit/single_file_src/single_file_prog_test.c)
   are an example of how you would start using these annotations.
 
   - Add `#include "loc.h"` in the source files where the LOC decoding macros
