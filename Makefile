@@ -8,8 +8,13 @@
 .DEFAULT_GOAL := all
 
 help::
-	@echo 'Usage: [BUILD_VERBOSE=1] CC=gcc LD=g++ make make [<target>]'
+	@echo ' '
+	@echo 'Usage: CC=gcc LD=g++ make <target>'
+	@echo ' '
 	@echo 'Supported targets: clean all run-tests run-test-code'
+	@echo 'Environment variables: '
+	@echo ' BUILD_MODE={release,debug}'
+	@echo ' BUILD_VERBOSE={0,1}'
 
 #
 # Verbosity
