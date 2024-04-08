@@ -1,5 +1,5 @@
 # #############################################################################
-# test_gen_loc_files_oss_code_bases.py
+# gen_loc_files_oss_code_bases_test.py
 #
 """
 Exercise LOC py-generator on a collection of OSS code-bases that have
@@ -26,8 +26,6 @@ LocDirRoot    = os.path.realpath(LocTestsDir + '/..')
 LocDirsParent = os.path.realpath(LocDirRoot + '/..')
 
 # #############################################################################
-# To see output from test-cases run:
-# $ pytest --capture=tee-sys tests/test_gen_loc_files_basic.py -k test_loc_main_scriptdir
 # pylint: disable-msg=line-too-long
 # Ref: https://stackoverflow.com/questions/800197/how-to-get-all-of-the-immediate-subdirectories-in-python
 #      https://docs.python.org/3/tutorial/inputoutput.html
