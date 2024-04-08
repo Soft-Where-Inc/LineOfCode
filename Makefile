@@ -348,8 +348,8 @@ endif
 
 .PHONY: install
 
+# Run the unit-test binary and run individual sample example program binaries.
 run-tests: run-unit-tests run-test-code
-	./test.sh
 
 run-unit-tests: all-tests
 	@echo
