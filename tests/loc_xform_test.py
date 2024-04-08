@@ -1,5 +1,5 @@
 # #############################################################################
-# test_loc_xform.py
+# loc_xform_test.py
 #
 """
 Basic unit-test for LOC encode / decode Python methods.
@@ -11,9 +11,6 @@ import loc.loc_xform as xform
 # #############################################################################
 # Setup some variables pointing to diff dir/sub-dir full-paths.
 
-# #############################################################################
-# To see output from test-cases run:
-# $ pytest --capture=tee-sys tests/test_gen_loc_files_basic.py -k test_loc_main_scriptdir
 # #############################################################################
 def test_loc_encode():
     """

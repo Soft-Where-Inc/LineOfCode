@@ -1,5 +1,5 @@
 # #############################################################################
-# test_gen_loc_files_basic.py
+# gen_loc_files_basic_test.py
 #
 """
 Collection of basic test cases to exercise the LOC generation machinery
@@ -29,7 +29,7 @@ LOC_ABBREV     = 'loc'
 
 # #############################################################################
 # To see output from test-cases run:
-# $ pytest --capture=tee-sys tests/test_gen_loc_files_basic.py -k test_loc_main_scriptdir
+# $ pytest --capture=tee-sys tests/gen_loc_files_basic_test.py -k test_loc_main_scriptdir
 # #############################################################################
 def test_loc_main_script_dir():
     """
@@ -69,7 +69,7 @@ def test_help():
     this raises() exception block to let the test case pass.
     If you want to see the --help output, do:
 
-      $ pytest --capture=tee-sys tests/test_gen_loc_files_basic.py -k test_help
+      $ pytest --capture=tee-sys tests/gen_loc_files_basic_test.py -k test_help
     """
     with pytest.raises(SystemExit):
         loc_main.loc_parse_args(['--help'])
