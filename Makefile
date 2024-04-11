@@ -208,7 +208,10 @@ GENERATED_OBJS := $(GENERATED_SRCS:%.c=$(OBJDIR)/%.o)
 # UNIT_TESTSRC := $(call rwildcard,$(UNIT_TESTSDIR),*.c)
 UNIT_TESTSRC := $(shell find $(TESTSDIR)/$(UNITDIR) -type f -name *.c -print)
 UNIT_TESTSRC += $(UNIT_GENSRC)
-UNIT_TESTSRC += $(SRCDIR)/$(LOCPACKAGE).c
+
+# One of the unit-test programs is written specifically to only use the
+# LOC_ELF encoding. So, we must always include the required source.
+UNIT_TESTSRC += $(LOC_ELF_SRC)
 
 # Objects from unit-test sources in tests/unit/ sub-dir, for unit-tests
 # Resolves to a list: obj/tests/unit/a.o obj/tests/unit/b.o obj/tests/unit/c.o
@@ -282,7 +285,7 @@ endif
 # Use this recursively defined variables to build the path to pick-up both
 # forms of #include .h files.
 # -----------------------------------------------------------------------------
-INCLUDE  = -I ./$(UNIT_INCDIR)
+INCLUDE := -I ./$(UNIT_INCDIR)
 INCLUDE += -I ./$(dir $<)
 INCLUDE += -I ./$(INCDIR)
 
