@@ -15,7 +15,6 @@ possible useful combinations that users could invoke.
 # #############################################################################
 import os
 import subprocess as sp
-import pytest
 
 # #############################################################################
 # Setup some variables pointing to diff dir/sub-dir full-paths.
@@ -51,7 +50,6 @@ def test_make_all():
     assert make_rv is True
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=0 build mode")
 def test_make_all_loc_eq_0():
     """Test `LOC_ENABLED=0 make all`"""
 
@@ -71,7 +69,6 @@ def test_make_all_tests():
     assert make_rv is True
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=0 build mode")
 def test_make_all_tests_loc_eq_0():
     """Test `LOC_ENABLED=0 make all-tests`"""
 
@@ -92,7 +89,6 @@ def test_make_all_run_tests():
     assert make_rv is True
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=0 build mode")
 def test_make_all_run_tests_loc_eq_0():
     """Test `make all` followed by `LOC_ENABLED=0 make run-tests`"""
 
@@ -138,7 +134,6 @@ def test_make_run_unit_tests():
     verify_unit_test_gen_files()
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=0 build mode")
 def test_make_run_unit_tests_loc_eq_0():
     """Test `LOC_ENABLED=1 make run-unit-tests`"""
 
@@ -147,7 +142,7 @@ def test_make_run_unit_tests_loc_eq_0():
                         { "BUILD_VERBOSE": "1", "CC": "gcc", "LD": "g++",
                           "LOC_ENABLED": LOC_EXPLICITLY_UNSET})
     assert make_rv is True
-    verify_unit_test_gen_files()
+    verify_unit_test_gen_files(loc_generate = False)
 
 # #############################################################################
 def test_make_run_unit_tests_loc_eq_1():
@@ -181,7 +176,6 @@ def test_make_all_test_code():
     assert make_rv is True
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=0 build mode")
 def test_make_all_test_code_loc_eq_0():
     """Test `LOC_ENABLED=0 make all-test-code`"""
 
@@ -202,7 +196,6 @@ def test_make_run_test_code():
     verify_test_code_gen_files()
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=0 build mode")
 def test_make_run_test_code_loc_eq_0():
     """Test `LOC_ENABLED=1 make run-test-code`"""
 
@@ -211,7 +204,7 @@ def test_make_run_test_code_loc_eq_0():
                         { "BUILD_VERBOSE": "1", "CC": "gcc", "LD": "g++",
                           "LOC_ENABLED": LOC_EXPLICITLY_UNSET})
     assert make_rv is True
-    verify_test_code_gen_files()
+    verify_test_code_gen_files(loc_generate = False)
 
 # #############################################################################
 def test_make_run_test_code_loc_eq_1():

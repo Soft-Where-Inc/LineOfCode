@@ -96,6 +96,7 @@ LOC_ELF_SRC         := $(SRCDIR)/loc.c
 # LOC-encoding comes in two flavours. Default technique is based on
 # Python-generator script. Enhanced technique is based on LOC-ELF
 # encoding.
+LOC_EXPLICITLY_UNSET := 0
 LOC_DEFAULT          := 1
 LOC_ELF_ENCODING     := 2
 
@@ -109,6 +110,8 @@ LOC_GENERATE := 0
 ifeq ($(LOC_ENABLED), $(LOC_DEFAULT))
     LOC_GENERATE := $(LOC_DEFAULT)
 else ifeq ($(LOC_ENABLED), $(LOC_ELF_ENCODING))
+    LOC_GENERATE := $(LOC_ELF_ENCODING)
+else ifeq ($(LOC_ENABLED), $(LOC_EXPLICITLY_UNSET))
     LOC_GENERATE := $(LOC_ELF_ENCODING)
 endif
 
