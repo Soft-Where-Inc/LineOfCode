@@ -10,6 +10,7 @@
 #include "loc.h"
 
 _Bool str_endswith(const char *str, const char *suffix);
+_Bool str_cmp_eq(const char *str1, const char *str2);
 
 /*
  * Global data declaration macro:
@@ -42,6 +43,16 @@ CTEST2(single_file_prog, test_basic_LOC)
     // Compare LOC-filename with actual file name.
     ASSERT_TRUE(str_endswith(__FILE__, file),
                 "Expected: '%s', Actual: '%s'\n", __FILE__, file);
+
+#if LOC_ELF_ENCODING
+    const char *func = LOC_FUNC(loc);
+
+    printf("__FUNC__='%s', LOC func='%s'\n", __FUNCTION__, func);
+
+    // Compare LOC-function name with actual function name.
+    ASSERT_TRUE(str_cmp_eq(__FUNCTION__, func),
+                "Expected: '%s', Actual: '%s'\n", __FUNCTION__, func);
+#endif  // LOC_ELF_ENCODING
 }
 
 /* Helper functions */

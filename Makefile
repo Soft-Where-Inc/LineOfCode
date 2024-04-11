@@ -275,7 +275,16 @@ all: all-tests all-test-code
 #  - Replace "." with "_" (*.c -> *_c, *.cpp -> *_cpp, *.cc -> *_cc)
 # -----------------------------------------------------------------------------
 ifeq ($(LOC_GENERATE), $(LOC_DEFAULT))
+
     CFLAGS += -DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))
+
+else ifeq ($(LOC_ENABLED), $(LOC_ELF_ENCODING))
+    # NOTE: This is -NOT- needed normally in user's project sources.
+    #       We just add this to allow some conditionally defined code in one of
+    #       the unit-test sources to compile. (Being able to build that source
+    #       fragment confirms that we are correctly #include'ing include/loc.h
+    #       and not the generated loc.h file.)
+    CFLAGS += -DLOC_ELF_ENCODING
 endif
 
 # -----------------------------------------------------------------------------
