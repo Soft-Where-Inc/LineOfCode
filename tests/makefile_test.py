@@ -150,7 +150,6 @@ def test_make_run_unit_tests_loc_eq_0():
     verify_unit_test_gen_files()
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=1 build mode")
 def test_make_run_unit_tests_loc_eq_1():
     """Test `LOC_ENABLED=1 make run-unit-tests`"""
 
@@ -162,7 +161,6 @@ def test_make_run_unit_tests_loc_eq_1():
     verify_unit_test_gen_files()
 
 # #############################################################################
-@pytest.mark.skip(reason="make fails with LOC_ENABLED=2 build mode")
 def test_make_run_unit_tests_loc_elf():
     """Test `LOC_ENABLED=2 make run-unit-tests`"""
 

@@ -4,6 +4,16 @@
  *
  * LOC test for a single file program, using LOC-variation based on ELF.
  * No Python generation is needed for this program. It relies only on loc.h
+ *
+ * The Makefile INCDIR rules for this file are written so that even if we
+ * run the builds with LOC_ENABLED=1 (i.e., LOC-files are generated), for this
+ * file, we #include the default include/loc.h . E.g., build output:
+ *
+ * ... gcc -DLOC_FILE_INDEX=LOC_single_file_prog_elf_test_c             \
+ *      -I ./tests/unit -I ./ -I ./include                              \
+ *      -c tests/unit/single_file_elf_src/single_file_prog_elf_test.c
+ *
+ * So, there is no dependency on the generation step.
  * -----------------------------------------------------------------------------
  */
 #include <string.h>
