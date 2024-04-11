@@ -1,8 +1,9 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# This workflow will install Python dependencies, run tests and lint with a
+# single version of Python.
+# For more information see:
+# https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Python application
-
+name: Python pytests
 on:
   push:
     branches: [ "main" ]
@@ -39,4 +40,8 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pytest -v tests
+         pytest -v tests
+
+    - name: Test make-pytests debug mode
+      run: |
+         BUILD_MODE=debug pytest -v --capture=tee-sys tests/makefile_test.py

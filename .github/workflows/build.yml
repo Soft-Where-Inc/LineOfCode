@@ -1,3 +1,4 @@
+name: Build and Test
 on:
   push:
     branches: [ "main" ]
@@ -8,50 +9,50 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [release, debug]
 
     steps:
     - uses: actions/checkout@v3
+
+    #! We need to install python3 as 'genloc' target invokes the Python generator
+    #! script, which will need to run python3.
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
         python-version: "3.10"
-    #! python-app.yml actually runs Py-tests. But test.sh also invokes
-    #! them (by default; some duplication). So install reqd s/w up front.
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest
 
     #! - name: configure
     #!  run: ./configure
 
     #! Ensure that standalone target still works on its own
     - name: genloc
-      run: make genloc
+      run: BUILD_MODE=${{ matrix.build_type }} make genloc
 
     - name: clean
-      run: make clean
+      run: BUILD_MODE=${{ matrix.build_type }} make clean
 
     - name: make-all-verbose
-      run: CC=gcc LD=g++ BUILD_VERBOSE=1 make
+      run: BUILD_MODE=${{ matrix.build_type }} CC=gcc LD=g++ BUILD_VERBOSE=1 make
 
     #! Execute testing targets; Run py-test and LOC-enabled sample programs
     - name: make-tests
       run: |
         make clean
-        CC=gcc LD=g++ make run-tests
+        BUILD_MODE=${{ matrix.build_type }} CC=gcc LD=g++ make run-tests
 
     #! Execute testing targets; Run py-test and LOC-enabled sample programs
     - name: test-make-with-external-cflags
       run: |
         make clean
-        CC=gcc LD=g++ CFLAGS='-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))' make -f Makefile.ext-CFLAGS  run-tests
+        BUILD_MODE=${{ matrix.build_type }} CC=gcc LD=g++ CFLAGS='-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))' make -f Makefile.ext-CFLAGS  run-tests
 
     #! Same as above, but just feed the CFLAGS emitted by Py-generator.
-    - name: test-make-with-py-gen-emitted-cflags
+    - name: test-make-with-cflags-emitted-by-python-generator
       run: |
         make clean
-        CC=gcc LD=g++ CFLAGS=$(./loc/gen_loc_files.py --src-root-dir ./test-code/single-file-cc-program --gen-cflags-brief) make -f Makefile.ext-CFLAGS run-tests
+        BUILD_MODE=${{ matrix.build_type }} CC=gcc LD=g++ CFLAGS=$(./loc/gen_loc_files.py --src-root-dir ./test-code/single-file-cc-program --gen-cflags-brief) make -f Makefile.ext-CFLAGS run-tests
 
     #! - name: Run check
     #!   run: make check
