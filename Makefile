@@ -3,6 +3,38 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Developed based on SplinterDB (https://github.com/vmware/splinterdb) Makefile
+#
+# This Makefile supports build-and-test for:
+#
+# a) A small collection of C-unit-tests (.c), under tests/unit/, and
+# b) A small collection of sample use-case application programs under test-code/
+#     Here, we demonstrate use of this encoding with .c, .cpp and .cc files.
+#
+# This toolkit supports two forms of code-location encoding, referred to as:
+#
+# 1) LOC    : Default mode, based on Python generator script. Needs CFLAGS
+#             specifier to compile references to LOC-macros in user's sources.
+#             Depends on generated loc.h, loc_tokens.h and loc_filenames.c
+#
+# 2) LOC_ELF: Encoding technique using named ELF-section. Does not require any
+#             Makefile / CFLAGS / Python-generator script support.
+#             Depends on provided include/loc.h, src/loc.c
+#
+# The actual steps to integrate either (1) or (2) into any user project are
+# simple. This Makefile exists to demonstrate that either encoding scheme can
+# be used for any of (a) or (b) sources. Much of the work in this Makefile is
+# to tease apart the build-rules for each encoding scheme as applicable to
+# each set of unit-test or use-cases test-code.
+#
+# Most of the magic happens either in the generated loc.h or in the provided
+# include/loc.h (& src/loc.c) files. These Makefile-rules are setup so that
+# the user does not need to "know" which loc.h is being #include'ed.
+# However, one must include only one of the two loc.h includes in the entire
+# project.
+#
+# NOTE:
+#   You cannot mix-and-match the loc.h files from different encoding schemes
+#   in your project sources.
 # #############################################################################
 
 .DEFAULT_GOAL := all
@@ -11,7 +43,7 @@ help::
 	@echo ' '
 	@echo 'Usage: CC=gcc LD=g++ make <target>'
 	@echo ' '
-	@echo 'Supported targets: clean all run-tests run-test-code'
+	@echo 'Supported targets: clean all all-tests run-tests run-unit-tests all-test-code run-test-code'
 	@echo 'Environment variables: '
 	@echo ' BUILD_MODE={release,debug}'
 	@echo ' BUILD_VERBOSE={0,1}'
@@ -59,6 +91,26 @@ TEST_CODE           := test-code
 UNIT_TESTSDIR       := $(TESTSDIR)/$(UNITDIR)
 UNIT_INCDIR         := $(UNIT_TESTSDIR)
 LOCGENPY            := $(LOCPACKAGE)/gen_loc_files.py
+LOC_ELF_SRC         := $(SRCDIR)/loc.c
+
+# LOC-encoding comes in two flavours. Default technique is based on
+# Python-generator script. Enhanced technique is based on LOC-ELF
+# encoding.
+LOC_DEFAULT          := 1
+LOC_ELF_ENCODING     := 2
+
+# Re-set env-vars, if not set to script local symbols as == 0
+#
+ifndef LOC_ENABLED
+    LOC_ENABLED := $(LOC_DEFAULT)
+endif
+
+LOC_GENERATE := 0
+ifeq ($(LOC_ENABLED), $(LOC_DEFAULT))
+    LOC_GENERATE := $(LOC_DEFAULT)
+else ifeq ($(LOC_ENABLED), $(LOC_ELF_ENCODING))
+    LOC_GENERATE := $(LOC_ELF_ENCODING)
+endif
 
 # ------------------------------------------------------------------------
 # Define a recursive wildcard function to 'find' all files under a sub-dir
@@ -104,11 +156,24 @@ genloc:
 
 # If you list both .h & .c file, generator gets triggered twice. List just one.
 # GENERATED := $(TESTSDIR)/$(UNITDIR)/loc.h $(TESTSDIR)/$(UNITDIR)/loc_filenames.c
-UNIT_GENSRC                    := $(TESTSDIR)/$(UNITDIR)/single_file_src/loc_filenames.c
-SINGLE_FILE_PROGRAM_GENSRC     := $(TEST_CODE)/single-file-program/loc_filenames.c
-TWO_FILES_PROGRAM_GENSRC       := $(TEST_CODE)/two-files-program/loc_filenames.c
-SINGLE_FILE_CPP_PROGRAM_GENSRC := $(TEST_CODE)/single-file-cpp-program/loc_filenames.c
-SINGLE_FILE_CC_PROGRAM_GENSRC  := $(TEST_CODE)/single-file-cc-program/loc_filenames.c
+ifeq ($(LOC_GENERATE), $(LOC_DEFAULT))
+
+    UNIT_GENSRC                    := $(TESTSDIR)/$(UNITDIR)/single_file_src/loc_filenames.c
+    SINGLE_FILE_PROGRAM_GENSRC     := $(TEST_CODE)/single-file-program/loc_filenames.c
+    TWO_FILES_PROGRAM_GENSRC       := $(TEST_CODE)/two-files-program/loc_filenames.c
+    SINGLE_FILE_CPP_PROGRAM_GENSRC := $(TEST_CODE)/single-file-cpp-program/loc_filenames.c
+    SINGLE_FILE_CC_PROGRAM_GENSRC  := $(TEST_CODE)/single-file-cc-program/loc_filenames.c
+
+else ifeq ($(LOC_GENERATE), $(LOC_ELF_ENCODING))
+
+    # This is not really a generated source, but we reuse the symbol to keep
+    # the downstream Make-logic simple[r].
+    SINGLE_FILE_PROGRAM_GENSRC     := $(LOC_ELF_SRC)
+    TWO_FILES_PROGRAM_GENSRC       := $(LOC_ELF_SRC)
+    SINGLE_FILE_CPP_PROGRAM_GENSRC := $(LOC_ELF_SRC)
+    SINGLE_FILE_CC_PROGRAM_GENSRC  := $(LOC_ELF_SRC)
+
+endif
 
 # As this Makefile builds all sources in this repo, we have a larger list
 # of dependencies.
@@ -123,11 +188,13 @@ GENERATED := $(UNIT_GENSRC)                     \
 # Rule will be triggered for objects defined to be dependent on $(GENERATED) sources.
 # Use the triggering target's dir-path to generate .h / .c files
 # ------------------------------------------------------------------------------
+ifeq ($(LOC_GENERATE), $(LOC_DEFAULT))
 $(GENERATED):
 	@echo
 	@echo "Invoke LOC-generator triggered by: " $@
 	$(LOCGENPY) --gen-includes-dir  $(dir $@) --gen-source-dir $(dir $@) --src-root-dir $(dir $@) --verbose
 	@echo
+endif
 
 # The rules to generate object files from the generated source files
 GENERATED_SRCS := $(filter %.c,$(GENERATED))
@@ -191,9 +258,9 @@ clean:
 ####################################################################
 # The main targets
 #
-all: all-tests all-test-code
 all-tests: $(BINDIR)/unit_test
 all-test-code: $(TEST_CODE_BINS)
+all: all-tests all-test-code
 
 # ###################################################################
 # CFLAGS, LDFLAGS, ETC
@@ -204,7 +271,9 @@ all-test-code: $(TEST_CODE_BINS)
 #  - Replace "-" in filename with "_"
 #  - Replace "." with "_" (*.c -> *_c, *.cpp -> *_cpp, *.cc -> *_cc)
 # -----------------------------------------------------------------------------
-CFLAGS=-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))
+ifeq ($(LOC_GENERATE), $(LOC_DEFAULT))
+    CFLAGS += -DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))
+endif
 
 # -----------------------------------------------------------------------------
 # Define the include files' dir-path. All unit-tests need to include ctest.h,
@@ -213,7 +282,7 @@ CFLAGS=-DLOC_FILE_INDEX=LOC_$(subst .,_,$(subst -,_,$(notdir $<)))
 # Use this recursively defined variables to build the path to pick-up both
 # forms of #include .h files.
 # -----------------------------------------------------------------------------
-INCLUDE := -I ./$(UNIT_INCDIR)
+INCLUDE  = -I ./$(UNIT_INCDIR)
 INCLUDE += -I ./$(dir $<)
 INCLUDE += -I ./$(INCDIR)
 
@@ -253,15 +322,15 @@ $(BINDIR)/unit_test: $(UNIT_TESTOBJS)
 # There can be more than one .o's linked to create test-code example
 # program.
 
-# ----
-SINGLE_FILE_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/single-file-program -type f -name *.c -print)
-SINGLE_FILE_PROGRAM_TESTSRC += $(SINGLE_FILE_PROGRAM_GENSRC)
+# -----------------------------------------------------------------------------
+SINGLE_FILE_PROGRAM_TESTSRC := $(SINGLE_FILE_PROGRAM_GENSRC)
+SINGLE_FILE_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/single-file-program -type f -name *.c -print)
 
 SINGLE_FILE_PROGRAM_OBJS := $(SINGLE_FILE_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
 
 $(BINDIR)/$(TEST_CODE)/single-file-program: $(SINGLE_FILE_PROGRAM_OBJS)
 
-# ----
+# -----------------------------------------------------------------------------
 TWO_FILES_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/two-files-program -type f -name *.c -print)
 TWO_FILES_PROGRAM_TESTSRC += $(TWO_FILES_PROGRAM_GENSRC)
 
@@ -273,21 +342,23 @@ $(BINDIR)/$(TEST_CODE)/single-file-program: $(OBJDIR)/$(TEST_CODE)/single-file-p
 $(BINDIR)/$(TEST_CODE)/two-files-program: $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-main.o \
                                           $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-file1.o
 
-# ----
-SINGLE_FILE_CPP_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/single-file-cpp-program -type f -name *.cpp -print)
-SINGLE_FILE_CPP_PROGRAM_TESTSRC += $(SINGLE_FILE_CPP_PROGRAM_GENSRC)
+# -----------------------------------------------------------------------------
+SINGLE_FILE_CPP_PROGRAM_TESTSRC := $(SINGLE_FILE_CPP_PROGRAM_GENSRC)
+SINGLE_FILE_CPP_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/single-file-cpp-program -type f -name *.cpp -print)
 
-SINGLE_FILE_CPP_PROGRAM_OBJS := $(SINGLE_FILE_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
+SINGLE_FILE_CPP_PROGRAM_TMP  := $(SINGLE_FILE_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
+SINGLE_FILE_CPP_PROGRAM_OBJS := $(SINGLE_FILE_CPP_PROGRAM_TMP:%.c=$(OBJDIR)/%.o)
 $(BINDIR)/$(TEST_CODE)/single-file-cpp-program: $(SINGLE_FILE_CPP_PROGRAM_OBJS)
 
-# ----
-SINGLE_FILE_CC_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/single-file-cc-program -type f -name *.cc -print)
-SINGLE_FILE_CC_PROGRAM_TESTSRC += $(SINGLE_FILE_CC_PROGRAM_GENSRC)
+# -----------------------------------------------------------------------------
+SINGLE_FILE_CC_PROGRAM_TESTSRC := $(SINGLE_FILE_CC_PROGRAM_GENSRC)
+SINGLE_FILE_CC_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/single-file-cc-program -type f -name *.cc -print)
 
-SINGLE_FILE_CC_PROGRAM_OBJS := $(SINGLE_FILE_CC_PROGRAM_TESTSRC:%.cc=$(OBJDIR)/%.o)
+SINGLE_FILE_CC_PROGRAM_TMP  := $(SINGLE_FILE_CC_PROGRAM_TESTSRC:%.cc=$(OBJDIR)/%.o)
+SINGLE_FILE_CC_PROGRAM_OBJS := $(SINGLE_FILE_CC_PROGRAM_TMP:%.c=$(OBJDIR)/%.o)
 $(BINDIR)/$(TEST_CODE)/single-file-cc-program: $(SINGLE_FILE_CC_PROGRAM_OBJS)
 
-# ----
+# -----------------------------------------------------------------------------
 # FIXME: This program needs C++20 support, so currently it's not being built.
 SOURCE_LOCATION_CPP_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/source-location-cpp-program -type f -name *.cpp -print)
 SOURCE_LOCATION_CPP_PROGRAM_OBJS := $(SOURCE_LOCATION_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
