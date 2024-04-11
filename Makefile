@@ -52,11 +52,11 @@ help::
 # Verbosity
 #
 ifndef BUILD_VERBOSE
-   BUILD_VERBOSE=0
+   BUILD_VERBOSE := 0
 endif
 
 # Setup echo formatting for messages.
-ifeq "$(BUILD_VERBOSE)" "1"
+ifeq ($(BUILD_VERBOSE), 1)
    COMMAND=
    PROLIX=@echo
    BRIEF=@ >/dev/null echo
@@ -64,7 +64,7 @@ ifeq "$(BUILD_VERBOSE)" "1"
    # BRIEF_FORMATTED=@ >/dev/null echo
    BRIEF_FORMATTED=@printf
    BRIEF_PARTIAL=@echo -n >/dev/null
-else ifeq "$(BUILD_VERBOSE)" "0"
+else ifeq ($(BUILD_VERBOSE), 0)
    COMMAND=@
    PROLIX=@ >/dev/null echo
    BRIEF=@echo
@@ -264,9 +264,36 @@ clean:
 ####################################################################
 # The main targets
 #
+all: all-tests all-test-code
+
 all-tests: $(BINDIR)/unit_test
 all-test-code: $(TEST_CODE_BINS)
-all: all-tests all-test-code
+
+ifeq ($(BUILD_VERBOSE), 1)
+	$(info ------ Debug ---------------------------------------------------------)
+	$(info $$TEST_CODE_SRC     = [${TEST_CODE_SRC}])
+	$(info )
+
+	$(info $$TEST_CODE_OBJS    = [${TEST_CODE_OBJS}])
+	$(info )
+
+	$(info $$TEST_CODE_BIN_SRC = [${TEST_CODE_BIN_SRC}])
+	$(info )
+
+	$(info $$TEST_CODE_BINS    = [${TEST_CODE_BINS}])
+	$(info )
+
+	$(info $$UNIT_TESTSRC      = [${UNIT_TESTSRC}])
+	$(info )
+
+	$(info $$GENERATED_OBJS    = [${GENERATED_OBJS}])
+	$(info )
+
+	$(info $$UNIT_TESTOBJS     = [${UNIT_TESTOBJS}])
+	$(info )
+
+endif
+
 
 # ###################################################################
 # CFLAGS, LDFLAGS, ETC
@@ -338,6 +365,12 @@ $(BINDIR)/unit_test: $(UNIT_TESTOBJS)
 # program.
 
 # -----------------------------------------------------------------------------
+# You have to list the generated file 1st in the list, so it gets generated
+# up-front. Otherwise, the core test-code/single-file-cpp-program/single-file-main.cpp
+# file will get compiled first without the generated loc.h, thereby, #include'ing
+# include/loc.h . This will cause builds (make all-test-code) to fail in normal
+# build mode.
+# -----------------------------------------------------------------------------
 SINGLE_FILE_PROGRAM_TESTSRC := $(SINGLE_FILE_PROGRAM_GENSRC)
 SINGLE_FILE_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/single-file-program -type f -name *.c -print)
 
@@ -346,16 +379,12 @@ SINGLE_FILE_PROGRAM_OBJS := $(SINGLE_FILE_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
 $(BINDIR)/$(TEST_CODE)/single-file-program: $(SINGLE_FILE_PROGRAM_OBJS)
 
 # -----------------------------------------------------------------------------
-TWO_FILES_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/two-files-program -type f -name *.c -print)
-TWO_FILES_PROGRAM_TESTSRC += $(TWO_FILES_PROGRAM_GENSRC)
+TWO_FILES_PROGRAM_TESTSRC := $(TWO_FILES_PROGRAM_GENSRC)
+TWO_FILES_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/two-files-program -type f -name *.c -print)
 
 TWO_FILES_PROGRAM_OBJS := $(TWO_FILES_PROGRAM_TESTSRC:%.c=$(OBJDIR)/%.o)
 
 $(BINDIR)/$(TEST_CODE)/two-files-program: $(TWO_FILES_PROGRAM_OBJS)
-$(BINDIR)/$(TEST_CODE)/single-file-program: $(OBJDIR)/$(TEST_CODE)/single-file-program/single-file-main.o
-
-$(BINDIR)/$(TEST_CODE)/two-files-program: $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-main.o \
-                                          $(OBJDIR)/$(TEST_CODE)/two-files-program/two-files-file1.o
 
 # -----------------------------------------------------------------------------
 SINGLE_FILE_CPP_PROGRAM_TESTSRC := $(SINGLE_FILE_CPP_PROGRAM_GENSRC)
@@ -363,6 +392,7 @@ SINGLE_FILE_CPP_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/single-file-cpp-pro
 
 SINGLE_FILE_CPP_PROGRAM_TMP  := $(SINGLE_FILE_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
 SINGLE_FILE_CPP_PROGRAM_OBJS := $(SINGLE_FILE_CPP_PROGRAM_TMP:%.c=$(OBJDIR)/%.o)
+
 $(BINDIR)/$(TEST_CODE)/single-file-cpp-program: $(SINGLE_FILE_CPP_PROGRAM_OBJS)
 
 # -----------------------------------------------------------------------------
@@ -371,6 +401,7 @@ SINGLE_FILE_CC_PROGRAM_TESTSRC += $(shell find $(TEST_CODE)/single-file-cc-progr
 
 SINGLE_FILE_CC_PROGRAM_TMP  := $(SINGLE_FILE_CC_PROGRAM_TESTSRC:%.cc=$(OBJDIR)/%.o)
 SINGLE_FILE_CC_PROGRAM_OBJS := $(SINGLE_FILE_CC_PROGRAM_TMP:%.c=$(OBJDIR)/%.o)
+
 $(BINDIR)/$(TEST_CODE)/single-file-cc-program: $(SINGLE_FILE_CC_PROGRAM_OBJS)
 
 # -----------------------------------------------------------------------------
@@ -416,17 +447,6 @@ $(BINDIR)/%: | $$(@D)/.
 	$(PROLIX) # blank line
 
 unit_test: $(BINDIR)/unit_test
-
-ifeq "$(BUILD_VERBOSE)" "1"
-	@echo
-	$(info $$TEST_CODE_SRC     = [${TEST_CODE_SRC}])
-	$(info $$TEST_CODE_OBJS    = [${TEST_CODE_OBJS}])
-	$(info $$TEST_CODE_BIN_SRC = [${TEST_CODE_BIN_SRC}])
-	$(info $$TEST_CODE_BINS    = [${TEST_CODE_BINS}])
-	$(info $$UNIT_TESTSRC      = [${UNIT_TESTSRC}])
-	$(info $$GENERATED_OBJS    = [${GENERATED_OBJS}])
-	$(info $$UNIT_TESTOBJS     = [${UNIT_TESTOBJS}])
-endif
 
 # ###################################################################
 # Testing
