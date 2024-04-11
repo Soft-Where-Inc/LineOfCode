@@ -50,15 +50,15 @@ LD  ?= gcc
 # ###################################################################
 # SOURCE DIRECTORIES AND FILES, Generator Package
 #
-LOCPACKAGE           = loc
-SRCDIR               = src
-INCDIR               = include
-TESTSDIR             = tests
-UNITDIR              = unit
-TEST_CODE            = test-code
-UNIT_TESTSDIR        = $(TESTSDIR)/$(UNITDIR)
-UNIT_INCDIR          = $(UNIT_TESTSDIR)
-LOCGENPY             = $(LOCPACKAGE)/gen_loc_files.py
+LOCPACKAGE          := loc
+SRCDIR              := src
+INCDIR              := include
+TESTSDIR            := tests
+UNITDIR             := unit
+TEST_CODE           := test-code
+UNIT_TESTSDIR       := $(TESTSDIR)/$(UNITDIR)
+UNIT_INCDIR         := $(UNIT_TESTSDIR)
+LOCGENPY            := $(LOCPACKAGE)/gen_loc_files.py
 
 # ------------------------------------------------------------------------
 # Define a recursive wildcard function to 'find' all files under a sub-dir
@@ -78,14 +78,14 @@ endif
 # Build mode
 #
 ifndef BUILD_MODE
-   BUILD_MODE=release
+   BUILD_MODE := release
 endif
 BUILD_DIR := $(BUILD_MODE)
 
-BUILD_PATH=$(BUILD_ROOT)/$(BUILD_DIR)
+BUILD_PATH := $(BUILD_ROOT)/$(BUILD_DIR)
 
-OBJDIR = $(BUILD_PATH)/obj
-BINDIR = $(BUILD_PATH)/bin
+OBJDIR := $(BUILD_PATH)/obj
+BINDIR := $(BUILD_PATH)/bin
 
 # Target provided in case one wishes to re-gen LOC-files, manually.
 genloc:
