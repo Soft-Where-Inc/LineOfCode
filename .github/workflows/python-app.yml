@@ -1,9 +1,15 @@
+# ##############################################################################
 # This workflow will install Python dependencies, run tests and lint with a
 # single version of Python.
 # For more information see:
 # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# ##############################################################################
 
 name: Python pytests
+#! -----------------------------------------------------------------------------
+# Ref: For running jobs on Linux & Mac/OSX with one workflow.
+# https://stackoverflow.com/questions/57946173/github-actions-run-step-on-specific-os
+#! -----------------------------------------------------------------------------
 on:
   push:
     branches: [ "main" ]
@@ -16,7 +22,10 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
 
     steps:
     - uses: actions/checkout@v3
