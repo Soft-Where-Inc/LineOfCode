@@ -1,3 +1,9 @@
+# ##############################################################################
+# This workflow will install required s/w components on Linux and Mac/OSX.
+# Run through different `make` targets to build-and-test test-code and
+# unit-tests, sample programs that invoke the LOC-encoding schemes.
+# ##############################################################################
+
 name: LineOfCode-Build and Test
 #! -----------------------------------------------------------------------------
 # Ref: For running jobs on Linux & Mac/OSX with one workflow.
