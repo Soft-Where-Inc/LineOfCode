@@ -1,4 +1,8 @@
-name: Build and Test
+name: LineOfCode-Build and Test
+#! -----------------------------------------------------------------------------
+# Ref: For running jobs on Linux & Mac/OSX with one workflow.
+# https://stackoverflow.com/questions/57946173/github-actions-run-step-on-specific-os
+#! -----------------------------------------------------------------------------
 on:
   push:
     branches: [ "main" ]
@@ -8,9 +12,10 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, macos-latest]
         build_type: [release, debug]
 
     steps:
