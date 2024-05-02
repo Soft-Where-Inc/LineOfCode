@@ -49,7 +49,44 @@ CTEST2(single_file_prog_loc_elf, test_basic_LOC)
     int line = LOC_LINE(loc);
 
     // Print for visual examination.
-    printf("\n__LINE__=%d, LOC line=%d\n", exp_line, line);
+    printf("\n__LOC__ = %d, __LINE__ = %d, LOC line = %d\n",
+           loc, exp_line, line);
+    printf("__FILE__='%s', LOC file='%s'\n", __FILE__, file);
+    printf("__FUNC__='%s', LOC func='%s'\n", __FUNCTION__, func);
+
+    ASSERT_EQUAL(exp_line, line,
+                 "Expected line=%d, actual line=%d\n", exp_line, line);
+
+    // Compare LOC-filename with actual file name.
+    ASSERT_TRUE(str_cmp_eq(__FILE__, file),
+                "Expected: '%s', Actual: '%s'\n", __FILE__, file);
+
+    // Compare LOC-function name with actual function name.
+    ASSERT_TRUE(str_cmp_eq(__FUNCTION__, func),
+                "Expected: '%s', Actual: '%s'\n", __FUNCTION__, func);
+}
+
+
+/**
+ * Clone of test_basic_LOC(), just so that we generate an additional __LOC__ ID
+ * value. This test was written to debug & troubleshoot how-to unpack LOC-ELF IDs
+ * using the standalone src/loc-elf-id-decoder.c program.
+ */
+CTEST2(single_file_prog_loc_elf, test_another_LOC)
+{
+    // Encode current line-of-code into loc
+    loc_t loc = __LOC__; int exp_line = __LINE__;
+
+    // Invoke LOC's default print method.
+    loc_print(loc);
+
+    const char *file = LOC_FILE(loc);
+    const char *func = LOC_FUNC(loc);
+    int line = LOC_LINE(loc);
+
+    // Print for visual examination.
+    printf("\n__LOC__ = %d, __LINE__ = %d, LOC line = %d\n",
+           loc, exp_line, line);
     printf("__FILE__='%s', LOC file='%s'\n", __FILE__, file);
     printf("__FUNC__='%s', LOC func='%s'\n", __FUNCTION__, func);
 
