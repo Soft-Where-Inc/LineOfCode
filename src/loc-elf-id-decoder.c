@@ -1,13 +1,18 @@
 /**
- * Sample program to read the ELF-sections info and dump it out.
+ * loc-elf-id-decoder.c: Sample program to read & dump the ELF-sections info
  *
+ * SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2024 Aditya P. Gurajada
+ */
+
+/* *****************************************************************************
  * Setup:
  *  $ sudo apt search libelf-dev
  *  $ sudo apt-get install -y libelf-dev/jammy
  *
- * Usage: $ gcc -o locations_dump locations_dump.c -lelf
- *   Run: $ ./locations_dump ./locations_dump
- *        $ ./locations_dump ./locations_example
+ * Usage: $ gcc -o loc-elf-id-decoder loc-elf-id-decoder.c -lelf
+ *   Run: $ ./loc-elf-id-decoder ./loc-elf-id-decoder
+ *        $ ./loc-elf-id-decoder ./locations_example
  *
  * Note: The final output that is displayed after some parsing by
  * dump_loc_ids() is also obtained by:
@@ -25,6 +30,7 @@
  *
  * History:
  *  3/2024  - Restarted; to get something working on Linux-VM
+ * *****************************************************************************
  */
 #include <stdio.h>
 #include <stdint.h>     // uint32_t etc.
