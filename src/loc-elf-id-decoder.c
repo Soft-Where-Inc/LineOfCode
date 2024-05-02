@@ -42,6 +42,7 @@
 #include <getopt.h>     // For getopt_long()
 #include <libelf.h>     // For ELF apis: elf_begin(), elf_kind() etc.
 #include <gelf.h>       // For ELF apis: GElf_Shdr{}, gelf_getshdr() etc.
+#include <assert.h>
 
 // Define the struct location
 struct location
@@ -79,6 +80,7 @@ struct option Long_options[] = {
     // { "brief"   , required_argument , NULL, 'f'},
       { "program-binary", required_argument   , NULL, 'p'}
     , { "brief"         , no_argument         , NULL, 'b'}
+    , { "brief-map"     , no_argument         , NULL, 'm'}
     , { "dump-rodata"   , no_argument         , NULL, 'r'}
     , { "dump-loc-ids"  , no_argument         , NULL, 'l'}
     , { "debug"         , no_argument         , NULL, 'd'}
@@ -86,11 +88,12 @@ struct option Long_options[] = {
     , { NULL, 0, NULL, 0} // End of options
 };
 
-const char * Options_str = "p:bldh";
+const char * Options_str = "p:bdhlm";
 
 typedef struct args {
     const char *    binary;
     _Bool           brief;
+    _Bool           brief_map;
     _Bool           dump_rodata;
     _Bool           dump_loc_ids;
     _Bool           debug;
@@ -108,6 +111,10 @@ _Bool print_this_section(const char *name);
 void dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref,
                   uint32_t count, const char *rodata_buf,
                   const size_t rodata_addr, uint64_t sh_addr);
+
+void dump_loc_ids_brief(_Bool brief_map, struct location *loc_id_ref,
+                        uint32_t count,
+                        const char *rodata_buf, const size_t rodata_addr);
 
 void prGElf_Shdr(const GElf_Shdr *shdr, Elf_Scn *scn, const char *name);
 
@@ -178,9 +185,13 @@ main(const int argc, char *argv[])
     GElf_Shdr shdr;
     Elf_Scn *scn = NULL;
     char *rodata_buf = NULL;
-    struct location *loc_ids = NULL;
     size_t rodata_addr = 0;
     char *name = NULL;
+
+    // Variables to track info about loc_ids section data
+    struct location *loc_ids = NULL;
+    uint32_t nloc_id_entries = 0;
+
     while ((scn = elf_nextscn(elf, scn)) != NULL) {
 
         // Get ELF section's header.
@@ -207,7 +218,6 @@ main(const int argc, char *argv[])
             }
         } else if (IS_REQD_SECTION(name)) {
 
-            uint32_t nloc_id_entries = 0;
             // Account for alignment bytes left in GElf_Shdr
             nloc_id_entries = ((shdr.sh_size - shdr.sh_addralign)
                                     / sizeof(struct location));
@@ -230,6 +240,12 @@ main(const int argc, char *argv[])
                              rodata_buf, rodata_addr, shdr.sh_addr);
             }
         }
+    }
+
+    if ((args->brief || args->brief_map) && loc_ids) {
+        assert(nloc_id_entries > 0);
+        dump_loc_ids_brief(args->brief_map, loc_ids, nloc_id_entries,
+                           rodata_buf, rodata_addr);
     }
 
     // Cleanup.
@@ -275,6 +291,10 @@ parse_arguments(const int argc, char *argv[], ArgStruct *args)
 
             case 'b':
                 args->brief = true;
+                break;
+
+            case 'm':
+                args->brief_map = true;
                 break;
 
             case 'r':
@@ -488,8 +508,8 @@ void hexdump(const void* data, size_t size, size_t sh_addr) {
  *                                       │
  *                                       file_offset (start of file-name)
  *
- * Empirically, it appears that &Loc_id_ref will be higher than the struct location{}
- * of each such location stashed in this section.
+ * Empirically, it appears that &Loc_id_ref will be higher than the
+ * struct location{} of each such location stashed in this section.
  * *****************************************************************************
  */
 void
@@ -503,12 +523,12 @@ dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
         printf("Index\t\tFunction\tFile\t\tLine\n");
     }
 
-    for (size_t i = 0; i < count; ++i) {
+    for (uint32_t i = 0; i < count; i++) {
         size_t func_offset = (intptr_t) loc_id_ref[i].fn;
         size_t file_offset = (intptr_t) loc_id_ref[i].file;
 
         if (dump_loc_ids) {
-            printf("%zu (0x%lx) \tfn=0x%lx, \tfile=0x%lx, \tline=%u",
+            printf("%u (0x%lx) \tfn=0x%lx, \tfile=0x%lx, \tline=%u",
                     i, sh_addr,     // &loc_id_ref[i],
                     func_offset, file_offset, loc_id_ref[i].line);
         }
@@ -526,5 +546,34 @@ dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
         }
         printf("\n");
         sh_addr += sizeof(*loc_id_ref);
+    }
+}
+
+/**
+ * *****************************************************************************
+ * dump_loc_ids_brief() - Unpack the Loc_id_ref[] structures from the named
+ * section. Print them out in a form that can be consumed by external scripts.
+ * *****************************************************************************
+ */
+void
+dump_loc_ids_brief(_Bool brief_map, struct location *loc_id_ref, uint32_t count,
+                   const char *rodata_buf, const size_t rodata_addr)
+{
+    for (uint32_t i = 0; i < count; i++) {
+        size_t func_offset = (intptr_t) loc_id_ref[i].fn;
+        size_t file_offset = (intptr_t) loc_id_ref[i].file;
+
+        if (brief_map) {
+            printf("-%lu %s:%d::%s()\n",
+                   ((count - i) * sizeof(*loc_id_ref)),
+                   (rodata_buf + (file_offset - rodata_addr)),
+                   loc_id_ref[i].line,
+                   (rodata_buf + (func_offset - rodata_addr)));
+        } else {
+            printf("%s:%d::%s()\n",
+                   (rodata_buf + (file_offset - rodata_addr)),
+                   loc_id_ref[i].line,
+                   (rodata_buf + (func_offset - rodata_addr)));
+        }
     }
 }
