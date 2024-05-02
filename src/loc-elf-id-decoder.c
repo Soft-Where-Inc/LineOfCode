@@ -42,6 +42,7 @@
 #include <getopt.h>     // For getopt_long()
 #include <libelf.h>     // For ELF apis: elf_begin(), elf_kind() etc.
 #include <gelf.h>       // For ELF apis: GElf_Shdr{}, gelf_getshdr() etc.
+#include <inttypes.h>
 #include <assert.h>
 
 // Define the struct location
@@ -132,11 +133,17 @@ void hexdump(const void* data, size_t size, size_t sh_addr);
 int
 main(const int argc, char *argv[])
 {
+
     ArgStruct *args = &Args;
     int rv = parse_arguments(argc, argv, args);
     if (rv) {
         return EXIT_FAILURE;
     }
+
+#ifdef __APPLE__
+    printf("Program %s is currently not supported on Mac/OSX\n", argv[0]);
+    return EXIT_SUCCESS;
+#endif  // __APPLE__
 
     if (Args.binary == NULL) {
         fprintf(stderr, "Option --program-binary is required.\n");
@@ -165,8 +172,11 @@ main(const int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    if (elf_kind(elf) != ELF_K_ELF) {
-        fprintf(stderr, "'%s' is not an ELF object.\n", args->binary);
+    int elf_rv = elf_kind(elf);
+    if (elf_rv != ELF_K_ELF) {
+        fprintf(stderr, "'%s' is not an ELF object: "
+                "(elf_kind()=%d, expected ELF_K_ELF=%d) %s.\n",
+                args->binary, elf_rv, ELF_K_ELF, elf_errmsg(-1));
         return EXIT_FAILURE;
     }
 
@@ -174,7 +184,7 @@ main(const int argc, char *argv[])
     // table of section names.
     size_t shstrndx = 0;
     if (elf_getshdrstrndx (elf, &shstrndx ) != 0) {
-        fprintf(stderr, "elf_getshdrstrndx() failed: %s.", elf_errmsg(-1));
+        fprintf(stderr, "elf_getshdrstrndx() failed: %s.\n", elf_errmsg(-1));
         return EXIT_FAILURE;
     }
     if (args->debug) {
@@ -528,7 +538,7 @@ dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
         size_t file_offset = (intptr_t) loc_id_ref[i].file;
 
         if (dump_loc_ids) {
-            printf("%u (0x%lx) \tfn=0x%lx, \tfile=0x%lx, \tline=%u",
+            printf("%u (0x%" PRIu64 ") \tfn=0x%lx, \tfile=0x%lx, \tline=%u",
                     i, sh_addr,     // &loc_id_ref[i],
                     func_offset, file_offset, loc_id_ref[i].line);
         }
