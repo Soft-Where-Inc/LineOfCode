@@ -33,6 +33,7 @@
 #include <unistd.h>     // For file read(), close() etc.
 #include <string.h>     // For strncmp() etc.
 #include <stdbool.h>    // For _Bool
+#include <getopt.h>     // For getopt_long()
 #include <libelf.h>     // For ELF apis: elf_begin(), elf_kind() etc.
 #include <gelf.h>       // For ELF apis: GElf_Shdr{}, gelf_getshdr() etc.
 
@@ -65,7 +66,33 @@ struct location
 // Fabricate a string to track code-location of call-site.
 #define __LOC__     "[" __FILE__ ":" STRINGIFY_VALUE(__LINE__) "]"
 
+/**
+ * Simple argument parsing structure.
+ */
+struct option Long_options[] = {
+    // { "brief"   , required_argument , NULL, 'f'},
+      { "program-binary", required_argument   , NULL, 'p'}
+    , { "brief"         , no_argument         , NULL, 'b'}
+    , { "dump-loc-ids"  , no_argument         , NULL, 'l'}
+    , { "debug"         , no_argument         , NULL, 'd'}
+    , { "help"          , no_argument         , NULL, 'h'}
+    , { NULL, 0, NULL, 0} // End of options
+};
+
+const char * Options_str = "p:bldh";
+
+typedef struct args {
+    const char *    binary;
+    _Bool           brief;
+    _Bool           dump_loc_ids;
+    _Bool           debug;
+} ArgStruct;
+
+ArgStruct Args = {0};
+
 // Function prototypes
+int parse_arguments(const int argc, char *argv[], ArgStruct *args);
+void print_usage(const char *program, struct option options[]);
 _Bool print_this_section(const char *name);
 void dump_loc_ids(struct location *loc_id_ref, size_t count,
                   const char *rodata_buf, const size_t rodata_addr);
@@ -80,8 +107,13 @@ void hexdump(const void* data, size_t size, size_t sh_addr);
  * *****************************************************************************
  */
 int
-main(const int argc, const char *argv[])
+main(const int argc, char *argv[])
 {
+    int rv = parse_arguments(argc, argv, &Args);
+    if (rv) {
+        return EXIT_FAILURE;
+    }
+
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <binary_file>\n", argv[0]);
         return EXIT_FAILURE;
@@ -182,6 +214,80 @@ main(const int argc, const char *argv[])
 /**
  * Helper methods
  */
+
+/**
+ * Simple argument parsing support.
+ */
+int
+parse_arguments(const int argc, char *argv[], ArgStruct *args)
+{
+    int option_index = 0;
+    int opt;
+
+    while ((opt = getopt_long(argc, argv, Options_str,  Long_options, &option_index))
+                != -1) {
+        switch (opt) {
+            case 'h':
+                print_usage((const char *) argv[0], Long_options);
+                exit(EXIT_SUCCESS);
+
+            case ':':
+                printf("%s: Option '%c' requires an argument\n",
+                       argv[0], optopt);
+                return EXIT_FAILURE;
+
+            case 'p':
+                args->binary = optarg;
+                break;
+
+            case 'b':
+                args->brief = true;
+                break;
+
+            case 'l':
+                args->dump_loc_ids = true;
+                break;
+
+            case 'd':
+                args->debug = true;
+                break;
+
+            case '?': // Invalid option or missing argument
+                printf("%s: Invalid option '%c' or missing argument\n",
+                       argv[0], opt);
+                return EXIT_FAILURE;
+
+            default:
+                // Handle error
+                return EXIT_FAILURE;
+        }
+    }
+    return 0;
+}
+
+void
+print_usage(const char *program_name, struct option options[])
+{
+    printf("Usage: %s [options] <loc-IDs>+\n", program_name);
+    printf("Options:\n");
+
+    for (int i = 0; options[i].name != NULL; i++) {
+        if (options[i].val != 0) {
+            printf("  -%c, --%s", options[i].val, options[i].name);
+        } else {
+            printf("      --%s", options[i].name);
+        }
+
+        if (options[i].has_arg == required_argument) {
+            printf(" <%s>", options[i].name);
+        } else if (options[i].has_arg == optional_argument) {
+            printf(" [<%s>]", options[i].name);
+        }
+
+        printf("\n");
+    }
+}
+
 _Bool
 print_this_section(const char *name)
 {
