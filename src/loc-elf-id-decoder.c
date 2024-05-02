@@ -92,13 +92,20 @@ ArgStruct Args = {0};
 
 // Function prototypes
 int parse_arguments(const int argc, char *argv[], ArgStruct *args);
+
 void print_usage(const char *program, struct option options[]);
+
 _Bool print_this_section(const char *name);
+
 void dump_loc_ids(struct location *loc_id_ref, size_t count,
                   const char *rodata_buf, const size_t rodata_addr);
+
 void prGElf_Shdr(const GElf_Shdr *shdr, Elf_Scn *scn, const char *name);
+
 void prSection_details(const char *name, Elf_Scn *scn, GElf_Shdr *shdr);
+
 void readSection_data(char *buffer, Elf_Scn *scn, GElf_Shdr *shdr);
+
 void hexdump(const void* data, size_t size, size_t sh_addr);
 
 /**

@@ -34,6 +34,8 @@ jobs:
       with:
         python-version: "3.10"
 
+    #! RESOLVE: Need this on Mac/OSX: brew install libelf
+
     #! - name: configure
     #!  run: ./configure
 

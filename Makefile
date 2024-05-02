@@ -74,6 +74,10 @@ else
    $(error Unknown BUILD_VERBOSE mode "$(BUILD_VERBOSE)".  Valid values are "0" or "1". Default is "0")
 endif
 
+# Identify the OS we are running on.
+UNAME_S := $(shell uname -s)
+UNAME_P := $(shell uname -p)
+
 # Compilers to use
 CC  ?= gcc
 CXX ?= g++
@@ -331,6 +335,11 @@ endif
 INCLUDE := -I ./$(UNIT_INCDIR)
 INCLUDE += -I ./$(dir $<)
 INCLUDE += -I ./$(INCDIR)
+
+# So that we can find libelf.h while compiling loc-elf-id-decoder
+ifeq ($(UNAME_S),Darwin)
+    INCLUDE += -I /usr/local/include/libelf
+endif
 
 # use += here, so that extra flags can be provided via the environment
 
