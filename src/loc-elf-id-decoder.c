@@ -73,6 +73,7 @@ struct option Long_options[] = {
     // { "brief"   , required_argument , NULL, 'f'},
       { "program-binary", required_argument   , NULL, 'p'}
     , { "brief"         , no_argument         , NULL, 'b'}
+    , { "dump-rodata"   , no_argument         , NULL, 'r'}
     , { "dump-loc-ids"  , no_argument         , NULL, 'l'}
     , { "debug"         , no_argument         , NULL, 'd'}
     , { "help"          , no_argument         , NULL, 'h'}
@@ -84,6 +85,7 @@ const char * Options_str = "p:bldh";
 typedef struct args {
     const char *    binary;
     _Bool           brief;
+    _Bool           dump_rodata;
     _Bool           dump_loc_ids;
     _Bool           debug;
 } ArgStruct;
@@ -97,7 +99,7 @@ void print_usage(const char *program, struct option options[]);
 
 _Bool print_this_section(const char *name);
 
-void dump_loc_ids(struct location *loc_id_ref, size_t count,
+void dump_loc_ids(struct location *loc_id_ref, uint32_t count,
                   const char *rodata_buf, const size_t rodata_addr);
 
 void prGElf_Shdr(const GElf_Shdr *shdr, Elf_Scn *scn, const char *name);
@@ -116,7 +118,8 @@ void hexdump(const void* data, size_t size, size_t sh_addr);
 int
 main(const int argc, char *argv[])
 {
-    int rv = parse_arguments(argc, argv, &Args);
+    ArgStruct *args = &Args;
+    int rv = parse_arguments(argc, argv, args);
     if (rv) {
         return EXIT_FAILURE;
     }
@@ -132,11 +135,10 @@ main(const int argc, char *argv[])
         fprintf(stderr, "Failed to initialize libelf\n");
         return EXIT_FAILURE;
     }
-    const char *binary_file = argv[1];
 
     // Open the binary file
     int fd;
-    if ((fd = open(binary_file, O_RDONLY, 0)) < 0) {
+    if ((fd = open(args->binary, O_RDONLY, 0)) < 0) {
         perror("open");
         return EXIT_FAILURE;
     }
@@ -150,7 +152,7 @@ main(const int argc, char *argv[])
     }
 
     if (elf_kind(elf) != ELF_K_ELF) {
-        fprintf(stderr, "'%s' is not an ELF object.", argv [1]);
+        fprintf(stderr, "'%s' is not an ELF object.\n", args->binary);
         return EXIT_FAILURE;
     }
 
@@ -161,7 +163,9 @@ main(const int argc, char *argv[])
         fprintf(stderr, "elf_getshdrstrndx() failed: %s.", elf_errmsg(-1));
         return EXIT_FAILURE;
     }
-    printf("%s: shstrndx=%lu\n", __LOC__, shstrndx);
+    if (args->debug) {
+        printf("%s: shstrndx=%lu\n", __LOC__, shstrndx);
+    }
 
     // Scan all ELF-sections and print brief info about each.
     GElf_Shdr shdr;
@@ -173,12 +177,12 @@ main(const int argc, char *argv[])
 
         // Get ELF section's header.
         if (gelf_getshdr(scn, &shdr) != &shdr) {
-            fprintf(stderr, "getshdr() failed: %s.", elf_errmsg(-1));
+            fprintf(stderr, "getshdr() failed: %s.\n", elf_errmsg(-1));
             return EXIT_FAILURE;
         }
         if ((name = elf_strptr(elf, shstrndx, shdr.sh_name)) == NULL ) {
 
-            fprintf(stderr, "elf_strptr() failed: %s.", elf_errmsg(-1));
+            fprintf(stderr, "elf_strptr() failed: %s.\n", elf_errmsg(-1));
             return EXIT_FAILURE;
         }
 
@@ -189,24 +193,29 @@ main(const int argc, char *argv[])
             readSection_data(rodata_buf, scn, &shdr);
             rodata_addr = shdr.sh_addr;
 
-            prGElf_Shdr(&shdr, scn, name);
-            hexdump(rodata_buf, shdr.sh_size, rodata_addr);
+            if (args->dump_rodata) {
+                prGElf_Shdr(&shdr, scn, name);
+                hexdump(rodata_buf, shdr.sh_size, rodata_addr);
+            }
         } else if (IS_REQD_SECTION(name)) {
 
-            int nloc_id_entries = 0;
+            uint32_t nloc_id_entries = 0;
             // Account for alignment bytes left in GElf_Shdr
             nloc_id_entries = ((shdr.sh_size - shdr.sh_addralign)
                                     / sizeof(struct location));
 
             struct location loc_ids[nloc_id_entries + 1];
             readSection_data((char *) &loc_ids, scn, &shdr);
-            prGElf_Shdr(&shdr, scn, name);
-            printf("%s expected to have %d entries.\n", name, nloc_id_entries);
 
-            hexdump(&loc_ids, shdr.sh_size, 0);
+            if (args->dump_loc_ids) {
+                prGElf_Shdr(&shdr, scn, name);
+                printf("Section %s expected to have %d entries.\n", name, nloc_id_entries);
 
-            dump_loc_ids(&loc_ids[0], nloc_id_entries + 1,
-                         rodata_buf, rodata_addr);
+                hexdump(&loc_ids, shdr.sh_size, 0);
+
+                dump_loc_ids(&loc_ids[0], nloc_id_entries,
+                             rodata_buf, rodata_addr);
+            }
         }
     }
 
@@ -250,6 +259,10 @@ parse_arguments(const int argc, char *argv[], ArgStruct *args)
 
             case 'b':
                 args->brief = true;
+                break;
+
+            case 'r':
+                args->dump_rodata = true;
                 break;
 
             case 'l':
@@ -337,7 +350,7 @@ prSection_details(const char *name, Elf_Scn *scn, GElf_Shdr *shdr)
 
         // Account for alignment bytes left in GElf_Shdr
         nloc_id_entries = ((shdr->sh_size - shdr->sh_addralign) / sizeof(struct location));
-        printf("%s expected to have %d entries.\n", name, nloc_id_entries);
+        printf("Section %s expected to have %d entries.\n", name, nloc_id_entries);
         found_reqd_section = true;
     }
 
@@ -348,7 +361,7 @@ prSection_details(const char *name, Elf_Scn *scn, GElf_Shdr *shdr)
     if (found_reqd_section) {
         struct location loc_ids[nloc_id_entries + 1];
         memmove(&loc_ids, buffer, shdr->sh_size);
-        dump_loc_ids(&loc_ids[0], nloc_id_entries + 1, (char *) NULL, 0);
+        dump_loc_ids(&loc_ids[0], nloc_id_entries, (char *) NULL, 0);
     }
     printf("\n");
 }
@@ -459,10 +472,10 @@ void hexdump(const void* data, size_t size, size_t sh_addr) {
  * *****************************************************************************
  */
 void
-dump_loc_ids(struct location *loc_id_ref, size_t count,
+dump_loc_ids(struct location *loc_id_ref, uint32_t count,
              const char *rodata_buf, const size_t rodata_addr)
 {
-    printf("\n%s: Dump location-IDs to stdout\n", __LOC__);
+    printf("\n%s: Dump %u location-IDs to stdout\n", __LOC__, count);
 
     _Bool extract_data = ((rodata_buf != NULL) && (rodata_addr > 0));
     printf("Index\tFunction\tFile\t\tLine\n");
@@ -479,4 +492,3 @@ dump_loc_ids(struct location *loc_id_ref, size_t count,
         printf("\n");
     }
 }
-
