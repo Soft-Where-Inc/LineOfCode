@@ -114,8 +114,9 @@ main(const int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <binary_file>\n", argv[0]);
+    if (Args.binary == NULL) {
+        fprintf(stderr, "Option --program-binary is required.\n");
+        print_usage((const char *) argv[0], Long_options);
         return EXIT_FAILURE;
     }
 
@@ -268,7 +269,9 @@ parse_arguments(const int argc, char *argv[], ArgStruct *args)
 void
 print_usage(const char *program_name, struct option options[])
 {
-    printf("Usage: %s [options] <loc-IDs>+\n", program_name);
+    printf("Usage: %s [options] "
+           "{-p | --program-binary} <program-binary> [ <loc-IDs>+ ]\n",
+           program_name);
     printf("Options:\n");
 
     for (int i = 0; options[i].name != NULL; i++) {
