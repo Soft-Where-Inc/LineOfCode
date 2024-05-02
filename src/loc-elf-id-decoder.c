@@ -101,7 +101,7 @@ _Bool print_this_section(const char *name);
 
 void dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref,
                   uint32_t count, const char *rodata_buf,
-                  const size_t rodata_addr);
+                  const size_t rodata_addr, uint64_t sh_addr);
 
 void prGElf_Shdr(const GElf_Shdr *shdr, Elf_Scn *scn, const char *name);
 
@@ -172,6 +172,7 @@ main(const int argc, char *argv[])
     GElf_Shdr shdr;
     Elf_Scn *scn = NULL;
     char *rodata_buf = NULL;
+    struct location *loc_ids = NULL;
     size_t rodata_addr = 0;
     char *name = NULL;
     while ((scn = elf_nextscn(elf, scn)) != NULL) {
@@ -205,12 +206,14 @@ main(const int argc, char *argv[])
             nloc_id_entries = ((shdr.sh_size - shdr.sh_addralign)
                                     / sizeof(struct location));
 
-            struct location loc_ids[nloc_id_entries + 1];
-            readSection_data((char *) &loc_ids, scn, &shdr);
+            loc_ids = (struct location *) malloc((nloc_id_entries + 1)
+                                                    * sizeof(*loc_ids));
+            readSection_data((char *) loc_ids, scn, &shdr);
 
             if (args->dump_loc_ids) {
                 prGElf_Shdr(&shdr, scn, name);
-                printf("Section %s expected to have %d entries.\n", name, nloc_id_entries);
+                printf("Section %s expected to have %d entries.\n",
+                       name, nloc_id_entries);
 
                 hexdump(&loc_ids, shdr.sh_size, 0);
 
@@ -218,12 +221,15 @@ main(const int argc, char *argv[])
             if (args->dump_loc_ids || args->brief) {
                 dump_loc_ids(args->dump_loc_ids,
                              &loc_ids[0], nloc_id_entries,
-                             rodata_buf, rodata_addr);
+                             rodata_buf, rodata_addr, shdr.sh_addr);
             }
         }
     }
 
     // Cleanup.
+    if (loc_ids) {
+        free(loc_ids);
+    }
     if (rodata_buf) {
         free(rodata_buf);
     }
@@ -365,7 +371,7 @@ prSection_details(const char *name, Elf_Scn *scn, GElf_Shdr *shdr)
     if (found_reqd_section) {
         struct location loc_ids[nloc_id_entries + 1];
         memmove(&loc_ids, buffer, shdr->sh_size);
-        dump_loc_ids(true, &loc_ids[0], nloc_id_entries, (char *) NULL, 0);
+        dump_loc_ids(true, &loc_ids[0], nloc_id_entries, (char *) NULL, 0, 0);
     }
     printf("\n");
 }
@@ -453,10 +459,13 @@ void hexdump(const void* data, size_t size, size_t sh_addr) {
  * dump_loc_ids(): Dump the contents of the loc_ids section
  *
  * Parameters:
+ *  dump_loc_ids- Boolean; True => print verbose dump. False => --brief output
  *  loc_id_ref  - Array of struct location{} entries
  *  count       - Number of entries in above array.
  *  rodata_buf  - Buffer holding '.rodata' section's data
  *  rodata_addr - Start address (i.e. GElf_Shdr->sh_addr) of .rodata section
+ *  sh_addr     - GElf_Shdr.sh_addr value for this `loc_ids` section.
+ *                This address gives start of this section.
  *
  * NOTE: {rodata_buf, rodata_addr} are optional, and can be {NULL,0}
  * When provided, this routine unpacks the loc_id_ref->fn and loc_id_ref->file
@@ -473,16 +482,19 @@ void hexdump(const void* data, size_t size, size_t sh_addr) {
  *                                       │
  *                                       file_offset (start of file-name)
  *
+ * Empirically, it appears that &Loc_id_ref will be higher than the struct location{}
+ * of each such location stashed in this section.
  * *****************************************************************************
  */
 void
 dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
-             const char *rodata_buf, const size_t rodata_addr)
+             const char *rodata_buf, const size_t rodata_addr,
+             uint64_t sh_addr)
 {
     _Bool extract_data = ((rodata_buf != NULL) && (rodata_addr > 0));
     if (dump_loc_ids) {
         printf("\n%s: Dump %u location-IDs to stdout\n", __LOC__, count);
-        printf("Index\tFunction\tFile\t\tLine\n");
+        printf("Index\t\tFunction\tFile\t\tLine\n");
     }
 
     for (size_t i = 0; i < count; ++i) {
@@ -490,8 +502,9 @@ dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
         size_t file_offset = (intptr_t) loc_id_ref[i].file;
 
         if (dump_loc_ids) {
-            printf("%zu\tfn=0x%lx, \tfile=0x%lx, \tline=%u",
-                    i, func_offset, file_offset, loc_id_ref[i].line);
+            printf("%zu (0x%lx) \tfn=0x%lx, \tfile=0x%lx, \tline=%u",
+                    i, sh_addr,     // &loc_id_ref[i],
+                    func_offset, file_offset, loc_id_ref[i].line);
         }
         if (extract_data) {
             if (dump_loc_ids) {
@@ -506,5 +519,6 @@ dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
             }
         }
         printf("\n");
+        sh_addr += sizeof(*loc_id_ref);
     }
 }
