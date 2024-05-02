@@ -93,6 +93,10 @@ UNIT_INCDIR         := $(UNIT_TESTSDIR)
 LOCGENPY            := $(LOCPACKAGE)/gen_loc_files.py
 LOC_ELF_SRC         := $(SRCDIR)/loc.c
 
+# Single source file goes into stand-alone LOC-ELF-ID decoder binary.
+LOC_ELF_ID_DECODER      := loc-elf-id-decoder
+LOC_ELF_ID_DECODER_SRC  := $(SRCDIR)/$(LOC_ELF_ID_DECODER).c
+
 # LOC-encoding comes in two flavours. Default technique is based on
 # Python-generator script. Enhanced technique is based on LOC-ELF
 # encoding.
@@ -409,6 +413,24 @@ $(BINDIR)/$(TEST_CODE)/single-file-cc-program: $(SINGLE_FILE_CC_PROGRAM_OBJS)
 SOURCE_LOCATION_CPP_PROGRAM_TESTSRC := $(shell find $(TEST_CODE)/source-location-cpp-program -type f -name *.cpp -print)
 SOURCE_LOCATION_CPP_PROGRAM_OBJS := $(SOURCE_LOCATION_CPP_PROGRAM_TESTSRC:%.cpp=$(OBJDIR)/%.o)
 $(BINDIR)/$(TEST_CODE)/source-location-cpp-program: $(SOURCE_LOCATION_CPP_PROGRAM_OBJS)
+
+# ##############################################################################
+# Symbols and rules to build stand-alone LOC-ELF-ID decoder binary.
+# ##############################################################################
+
+LOC_ELF_ID_DECODER_OBJS     := $(LOC_ELF_ID_DECODER_SRC:%.c=$(OBJDIR)/%.o)
+
+LOC_ELF_ID_DECODER_BIN      := $(BINDIR)/$(LOC_ELF_ID_DECODER)
+$(LOC_ELF_ID_DECODER_BIN): $(LOC_ELF_ID_DECODER_OBJS)
+ifeq ($(BUILD_VERBOSE), 1)
+    $(info ------ Debug ---------------------------------------------------------)
+    $(info $$LOC_ELF_ID_DECODER_OBJS     = [${LOC_ELF_ID_DECODER_OBJS}])
+    $(info $$LOC_ELF_ID_DECODER_BIN     = [${LOC_ELF_ID_DECODER_BIN}])
+endif
+
+# Need to specifically link with libelf library to do ELF-decoding.
+loc-elf-decoder: LIBS += -lelf
+loc-elf-decoder: $(LOC_ELF_ID_DECODER_BIN)
 
 # ###################################################################
 # RECIPES:
