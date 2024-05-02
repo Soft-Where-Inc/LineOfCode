@@ -218,7 +218,7 @@ main(const int argc, char *argv[])
                 hexdump(&loc_ids, shdr.sh_size, 0);
 
             }
-            if (args->dump_loc_ids || args->brief) {
+            if (args->dump_loc_ids) {
                 dump_loc_ids(args->dump_loc_ids,
                              &loc_ids[0], nloc_id_entries,
                              rodata_buf, rodata_addr, shdr.sh_addr);
