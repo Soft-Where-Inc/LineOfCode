@@ -99,8 +99,9 @@ void print_usage(const char *program, struct option options[]);
 
 _Bool print_this_section(const char *name);
 
-void dump_loc_ids(struct location *loc_id_ref, uint32_t count,
-                  const char *rodata_buf, const size_t rodata_addr);
+void dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref,
+                  uint32_t count, const char *rodata_buf,
+                  const size_t rodata_addr);
 
 void prGElf_Shdr(const GElf_Shdr *shdr, Elf_Scn *scn, const char *name);
 
@@ -213,7 +214,10 @@ main(const int argc, char *argv[])
 
                 hexdump(&loc_ids, shdr.sh_size, 0);
 
-                dump_loc_ids(&loc_ids[0], nloc_id_entries,
+            }
+            if (args->dump_loc_ids || args->brief) {
+                dump_loc_ids(args->dump_loc_ids,
+                             &loc_ids[0], nloc_id_entries,
                              rodata_buf, rodata_addr);
             }
         }
@@ -361,7 +365,7 @@ prSection_details(const char *name, Elf_Scn *scn, GElf_Shdr *shdr)
     if (found_reqd_section) {
         struct location loc_ids[nloc_id_entries + 1];
         memmove(&loc_ids, buffer, shdr->sh_size);
-        dump_loc_ids(&loc_ids[0], nloc_id_entries, (char *) NULL, 0);
+        dump_loc_ids(true, &loc_ids[0], nloc_id_entries, (char *) NULL, 0);
     }
     printf("\n");
 }
@@ -472,22 +476,34 @@ void hexdump(const void* data, size_t size, size_t sh_addr) {
  * *****************************************************************************
  */
 void
-dump_loc_ids(struct location *loc_id_ref, uint32_t count,
+dump_loc_ids(_Bool dump_loc_ids, struct location *loc_id_ref, uint32_t count,
              const char *rodata_buf, const size_t rodata_addr)
 {
-    printf("\n%s: Dump %u location-IDs to stdout\n", __LOC__, count);
-
     _Bool extract_data = ((rodata_buf != NULL) && (rodata_addr > 0));
-    printf("Index\tFunction\tFile\t\tLine\n");
+    if (dump_loc_ids) {
+        printf("\n%s: Dump %u location-IDs to stdout\n", __LOC__, count);
+        printf("Index\tFunction\tFile\t\tLine\n");
+    }
+
     for (size_t i = 0; i < count; ++i) {
         size_t func_offset = (intptr_t) loc_id_ref[i].fn;
         size_t file_offset = (intptr_t) loc_id_ref[i].file;
-        printf("%zu\tfn=0x%lx, \tfile=0x%lx, \tline=%u",
-                i, func_offset, file_offset, loc_id_ref[i].line);
+
+        if (dump_loc_ids) {
+            printf("%zu\tfn=0x%lx, \tfile=0x%lx, \tline=%u",
+                    i, func_offset, file_offset, loc_id_ref[i].line);
+        }
         if (extract_data) {
-            printf(" fn='%s', file='%s'",
-                   (rodata_buf + (func_offset - rodata_addr)),
-                   (rodata_buf + (file_offset - rodata_addr)));
+            if (dump_loc_ids) {
+                printf(" fn='%s', file='%s'",
+                       (rodata_buf + (func_offset - rodata_addr)),
+                       (rodata_buf + (file_offset - rodata_addr)));
+            } else {
+                printf("%s:%d::%s()",
+                       (rodata_buf + (file_offset - rodata_addr)),
+                       loc_id_ref[i].line,
+                       (rodata_buf + (func_offset - rodata_addr)));
+            }
         }
         printf("\n");
     }
